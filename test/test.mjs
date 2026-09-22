@@ -205,12 +205,13 @@ console.log('\n[5] NORWEGIAN LETTERS — the phrase in the other language');
 
 console.log('\n[6] TAPPABLE LETTERS + the prizes I destroyed');
 {
-  // a device already topped up to v1 must still receive the fourth
+  // the hardcoded prize repair is gone: an existing collection is left alone
   const a = boot({ rate:.8, goal:3, lang:'pl', mode:'letters',
-                   prizes:['🍭','🦖','⭐️'], day:'', restored:true });
+                   prizes:['🍭','🦖','⭐️'], day:'', restoredV:1 });
   await sleep(150);
   const got = JSON.parse(a.w.localStorage.getItem('litery.child.v2')).prizes;
-  ok(got.length === 4 && got[3] === '🦖', 'a v1 device gets the fourth prize added', JSON.stringify(got));
+  ok(got.length === 3, 'an existing collection is never topped up behind her back',
+     JSON.stringify(got));
   a.w.close();
 }
 {
@@ -234,9 +235,9 @@ console.log('\n[6] TAPPABLE LETTERS + the prizes I destroyed');
 
   const got = JSON.parse(a.w.localStorage.getItem('litery.child.v2')).prizes;
   console.log('  prizes after boot: ' + JSON.stringify(got));
-  ok(got.length === 4 && got.filter(x => x === '🦖').length === 2 &&
-     got.includes('🍭') && got.includes('⭐️'),
-     'all four prizes are back, both dinosaurs', JSON.stringify(got));
+  ok(got.length === 0,
+     'a blank device starts with an empty album, not an invented one',
+     JSON.stringify(got));
   a.w.close();
 }
 
@@ -747,6 +748,76 @@ console.log('\n[14] NAME OFF THE SOURCE');
   ok(w.document.getElementById('setup').classList.contains('on') === false,
      'she is not asked for her name again');
   w.close();
+}
+
+console.log('\n[15] IMPORT — moving her between origins');
+{
+  // a blank device, exactly like the published copy was
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'mixed',
+                   prizes:[], day:'', restoredV:0 });
+  await sleep(200);
+
+  const before = JSON.parse(a.w.localStorage.getItem('litery.child.v2'));
+  console.log('  fresh device prizes: ' + JSON.stringify(before.prizes));
+  ok((before.prizes || []).length === 0,
+     'A FRESH DEVICE INVENTS NO PRIZES', JSON.stringify(before.prizes));
+
+  // the payload a sync or Copy all data produces
+  const payload = {
+    build: 28,
+    settings: { goal: 20, rate: 0.3, lang: 'nb', mode: 'mixed' },
+    prizes: ['⭐️','🍭','🦖','🦖','🐙','🌈','🎨'],
+    mastery: {
+      'pl:L:s': { n:12, ft:9, box:5, streak:3, last:Date.now(), ms:[3400] },
+      'pl:L:t': { n:6,  ft:4, box:1, streak:0, last:Date.now(), ms:[3600] }
+    },
+    log: Array.from({ length: 59 }, (_, i) => (
+      { t: Date.now() - i*60000, l:'pl', k:'L', s:1, x:'s', d:'b', o:2, w:i%3?0:1, ms:2200, h:0, c:0 }))
+  };
+
+  a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown'));
+  await sleep(1400);
+  a.click('#statsbtn'); await sleep(80);
+  ok(a.screen() === 'stats', 'dashboard opens');
+
+  a.click('#importbtn'); await sleep(40);
+  ok(a.d.getElementById('dump').style.display === 'block', 'a paste box appears');
+  a.d.getElementById('dump').value = JSON.stringify(payload);
+  a.click('#importbtn'); await sleep(80);
+
+  const after = JSON.parse(a.w.localStorage.getItem('litery.child.v2'));
+  const mast  = JSON.parse(a.w.localStorage.getItem('litery.child.mastery'));
+  const lg    = JSON.parse(a.w.localStorage.getItem('litery.child.log'));
+  console.log('  after import: ' + after.prizes.length + ' prizes, ' + lg.length +
+              ' rows, ' + Object.keys(mast).length + ' mastery items');
+  ok(after.prizes.length === 7, 'ALL SEVEN PRIZES ARRIVE', JSON.stringify(after.prizes));
+  ok(lg.length === 59, 'all 59 attempts arrive', String(lg.length));
+  ok(mast['pl:L:s'].box === 5, 'mastery boxes arrive intact');
+  ok(after.rate === 0.3 && after.lang === 'nb', 'settings come with it',
+     after.rate + ' / ' + after.lang);
+  ok(after.name === 'Ada', 'the name typed on THIS device is kept', after.name);
+  ok(a.screen() === 'stats', 'the dashboard redraws with the imported data');
+  ok(a.d.querySelectorAll('#sbody .item').length > 0, 'and it now has rows to show');
+  a.w.close();
+}
+
+{
+  // rubbish in must not wipe anything
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'mixed',
+                   prizes:['🌈'], day:'', restoredV:2 });
+  await sleep(200);
+  a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown'));
+  await sleep(1400);
+  a.click('#statsbtn'); await sleep(80);
+  a.click('#importbtn'); await sleep(40);
+  a.d.getElementById('dump').value = 'this is not json';
+  a.click('#importbtn'); await sleep(60);
+  const kept = JSON.parse(a.w.localStorage.getItem('litery.child.v2'));
+  ok(kept.prizes.length === 1 && kept.prizes[0] === '🌈',
+     'a bad paste changes nothing', JSON.stringify(kept.prizes));
+  ok(/Could not read/.test(a.d.getElementById('importbtn').textContent),
+     'and says so', a.d.getElementById('importbtn').textContent);
+  a.w.close();
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

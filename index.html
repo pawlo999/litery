@@ -178,7 +178,7 @@
   .dtab td{padding:5px 6px;border-bottom:1px solid #262b38;}
   .dtab td.r{text-align:right;color:#9aa3b2;}
   .empty{color:#9aa3b2;padding:8px 0;}
-  .dump{display:none;width:100%;max-width:560px;height:70px;margin-top:8px;font-size:11px;
+  .dump{display:none;width:100%;max-width:560px;height:120px;margin-top:8px;font-size:11px;
         background:#0b0d12;color:#7f8899;border:1px solid #262b38;border-radius:8px;}
   #parent{background:#14161c;color:#eceff5;}
   #parent h3{margin:0 0 18px;font-size:19px;font-weight:800;}
@@ -270,6 +270,7 @@
   <div class="sbody" id="sbody"></div>
   <div class="srow">
     <button class="pbtn" id="copydata">Copy all data</button>
+    <button class="pbtn" id="importbtn">Import data</button>
     <button class="pbtn" id="sback">Back</button>
   </div>
   <textarea id="dump" class="dump"></textarea>
@@ -317,7 +318,7 @@
 (function () {
 'use strict';
 
-var BUILD = 28;   /* visible bottom-right and in the parent panel */
+var BUILD = 29;   /* visible bottom-right and in the parent panel */
 
 /* ============ content ============================================== */
 /* Uppercase is what she SEES. The lowercase `w` is what the VOICE gets. */
@@ -532,15 +533,9 @@ function load(){
   /* renaming sticker->prize bumped the storage key and wiped what she had
      already earned. give those three back, once. never bump a key again -
      migrate the old one instead.                                          */
-  /* versioned, because the first restore gave her three and she had earned a
-     fourth by then. top up only if the collection still looks untouched.   */
-  if(S.restoredV < 1){
-    if(!S.prizes.length) S.prizes = ['🍭','🦖','⭐️','🦖'];
-    S.restoredV = 1; save();
-  } else if(S.restoredV < 2){
-    if(S.prizes.length === 3) S.prizes.push('🦖');
-    S.restoredV = 2; save();
-  }
+  /* the hardcoded prize repair was removed: localStorage is per-origin, so on
+     a new host it fired on a blank device and invented four prizes nobody had
+     earned. Import below is the honest way to move a collection.            */
 }
 function save(){
   try{
@@ -1125,11 +1120,55 @@ function openStats(){
 
 $('statsbtn') && $('statsbtn').addEventListener('click', openStats);
 $('sback').addEventListener('click', function(){ show('play'); });
+/* localStorage does not cross origins, so moving her from the laptop URL to
+   the published one needs an explicit hand-off. also covers a new iPad.   */
+function importPayload(txt){
+  var d = JSON.parse(txt);
+  if(!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not a data payload');
+  if(!d.log && !d.mastery && !d.prizes) throw new Error('no progress in that payload');
+
+  if(d.mastery && typeof d.mastery === 'object') MASTERY = d.mastery;
+  if(Array.isArray(d.log))    LOG = d.log;
+  if(Array.isArray(d.prizes)) S.prizes = d.prizes;
+  if(d.settings){
+    if(d.settings.goal) S.goal = d.settings.goal;
+    if(d.settings.rate) S.rate = d.settings.rate;
+    if(d.settings.lang) S.lang = d.settings.lang;
+    if(d.settings.mode) S.mode = d.settings.mode;
+  }
+  if(d.name) S.name = d.name;
+  S.restoredV = 2;
+  save(); saveLog();
+  return { prizes:S.prizes.length, log:LOG.length,
+           mastery:Object.keys(MASTERY).length };
+}
+
+$('importbtn').addEventListener('click', function(){
+  var ta = $('dump');
+  if(ta.style.display === 'block' && ta.dataset.mode === 'in'){
+    var res;
+    try { res = importPayload(ta.value); }
+    catch(e){ $('importbtn').textContent = 'Could not read that: ' + (e.message || e); return; }
+    ta.style.display = 'none';
+    ta.dataset.mode = '';
+    $('importbtn').textContent = 'Imported ' + res.prizes + ' prizes, ' +
+                                 res.log + ' rows, ' + res.mastery + ' items';
+    openStats();
+    return;
+  }
+  ta.value = '';
+  ta.dataset.mode = 'in';
+  ta.style.display = 'block';
+  ta.focus();
+  $('importbtn').textContent = 'Paste below, then tap here again';
+});
+
 $('copydata').addEventListener('click', function(){
   var payload = JSON.stringify({ build:BUILD, settings:{ goal:S.goal, rate:S.rate,
                     lang:S.lang, mode:S.mode }, prizes:S.prizes,
                     mastery:MASTERY, log:LOG });
   var ta = $('dump');
+  ta.dataset.mode = 'out';
   ta.style.display = 'block';
   ta.value = payload;
   ta.select();
