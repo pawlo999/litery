@@ -81,10 +81,16 @@
   .picwrap{display:flex;flex-direction:column;align-items:center;gap:12px;}
   .hint{font-size:16px;color:var(--dim);height:20px;font-weight:600;}
   .pic.counting{padding:16px 20px;}
-  .cnt{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;align-items:center;
-       max-width:min(62vw,430px);}
-  .cnt span{font-size:clamp(38px,7.6vh,64px);line-height:1;}
-  .cnt.many span{font-size:clamp(28px,5.6vh,48px);}
+  /* fixed dice arrangements. objects that flow into whatever fits the width
+     have to be counted one by one every time; a shape stays the same and can
+     eventually be recognised without counting at all.                     */
+  .cnt{display:grid;gap:4px;place-items:center;
+       grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+       width:min(52vw,300px);height:min(52vw,300px);}
+  .cnt.wide{grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(2,1fr);
+            width:min(62vw,400px);height:min(26vw,170px);}
+  .cnt span{font-size:clamp(34px,6.6vh,58px);line-height:1;}
+  .cnt.wide span{font-size:clamp(26px,5vh,44px);}
   .band{display:none;position:fixed;top:0;left:0;right:0;z-index:30;
         background:#7a2e39;color:#fff;font-size:12px;font-weight:700;
         letter-spacing:.06em;text-align:center;
@@ -139,7 +145,25 @@
             justify-content:center;background:rgba(20,8,40,.78);
             -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);}
   .bigprize.on{display:flex;}
-  .bigprize span{font-size:min(56vw,340px);line-height:1;animation:pp .45s;}
+  .bigprize span{font-size:min(56vw,340px);line-height:1;
+                 animation:pp .45s, bob 2.6s ease-in-out .45s infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}
+                 50%{transform:translateY(-22px) rotate(3deg)}}
+
+  .confetti{position:fixed;left:0;right:0;top:-60px;bottom:-60px;
+            pointer-events:none;z-index:45;overflow:hidden;display:none;}
+  .confetti.on{display:block;}
+  .confetti i{position:absolute;top:-10%;font-style:normal;font-size:24px;
+              animation:fall linear forwards;}
+  @keyframes fall{to{transform:translateY(125vh) rotate(720deg);opacity:.2;}}
+
+  .grid span.fresh{animation:pp .5s, glow 1.6s ease-in-out 3;}
+  @keyframes glow{0%,100%{box-shadow:0 5px 0 rgba(70,30,120,.12);}
+                  50%{box-shadow:0 0 0 6px var(--main-soft),0 5px 0 rgba(70,30,120,.12);}}
+  .albumbar{width:min(78vw,420px);height:12px;border-radius:7px;background:rgba(255,255,255,.4);
+            overflow:hidden;margin:-8px 0 20px;}
+  .albumbar i{display:block;height:100%;border-radius:7px;background:var(--main);
+              transition:width .6s ease;}
 
   /* ---------- reward ---------- */
   .big{font-size:clamp(96px,19vh,150px);line-height:1;}
@@ -243,6 +267,7 @@
 </div>
 
 <!-- 3b ----------------------------------------------------------------- -->
+<div class="confetti" id="confetti"></div>
 <div class="bigprize" id="bigprize"><span id="bigprizeface">⭐️</span></div>
 <div class="screen" id="board">
   <button class="backx" id="backx">←</button>
@@ -318,7 +343,7 @@
 (function () {
 'use strict';
 
-var BUILD = 29;   /* visible bottom-right and in the parent panel */
+var BUILD = 32;   /* visible bottom-right and in the parent panel */
 
 /* ============ content ============================================== */
 /* Uppercase is what she SEES. The lowercase `w` is what the VOICE gets. */
@@ -326,42 +351,60 @@ var BUILD = 29;   /* visible bottom-right and in the parent panel */
 var WORDS = {
   /* stage 1 rule: 3-4 letters, first letter missing. nothing longer. */
   pl: [
-    {w:'ser',  e:'🧀'}, {w:'sok',  e:'🧃'}, {w:'sowa', e:'🦉'}, {w:'słoń', e:'🐘'}, {w:'sól', e:'🧂'},
-    {w:'but',  e:'👟'}, {w:'byk',  e:'🐂'}, {w:'brat', e:'👦'},
-    {w:'tort', e:'🎂'}, {w:'tata', e:'👨'}, {w:'tir',  e:'🚛'}
+    {w:'ser', e:'🧀'}, {w:'sok', e:'🧃'}, {w:'sowa',e:'🦉'}, {w:'słoń',e:'🐘'}, {w:'sól', e:'🧂'},
+    {w:'but', e:'👟'}, {w:'byk', e:'🐂'}, {w:'brat',e:'👦'},
+    {w:'tort',e:'🎂'}, {w:'tata',e:'👨'}, {w:'tir', e:'🚛'},
+    {w:'mama',e:'👩'}, {w:'miś', e:'🧸'}, {w:'mysz',e:'🐭'},
+    {w:'kot', e:'🐱'}, {w:'kura',e:'🐔'}, {w:'koza',e:'🐐'}, {w:'koń', e:'🐴'},
+    {w:'lody',e:'🍦'}, {w:'las', e:'🌲'}, {w:'lew', e:'🦁'},
+    {w:'dom', e:'🏠'}, {w:'dąb', e:'🌳'},
+    {w:'nos', e:'👃'}, {w:'noga',e:'🦵'}, {w:'noc', e:'🌙'}, {w:'nuta',e:'🎵'},
+    {w:'oko', e:'👁️'}, {w:'owca',e:'🐑'}, {w:'osa', e:'🐝'},
+    {w:'auto',e:'🚗'},
+    {w:'ryba',e:'🐟'}, {w:'ręka',e:'✋'}, {w:'róża',e:'🌹'},
+    {w:'pies',e:'🐶'}, {w:'paw', e:'🦚'},
+    {w:'woda',e:'💧'}, {w:'wilk',e:'🐺'}, {w:'waga',e:'⚖️'}
   ],
   nb: [
-    {w:'sol',  e:'☀️'}, {w:'sko',  e:'👟'}, {w:'sau',  e:'🐑'}, {w:'sokk', e:'🧦'},
-    {w:'bil',  e:'🚗'}, {w:'ball', e:'⚽'}, {w:'bok',  e:'📕'}, {w:'bad',  e:'🛁'},
-    {w:'tog',  e:'🚆'}, {w:'tann', e:'🦷'}, {w:'tre',  e:'🌳'},
-    {w:'egg',  e:'🥚'}
+    {w:'sol', e:'☀️'}, {w:'sko', e:'👟'}, {w:'sau', e:'🐑'}, {w:'sokk',e:'🧦'},
+    {w:'bil', e:'🚗'}, {w:'ball',e:'⚽'}, {w:'bok', e:'📕'}, {w:'bad', e:'🛁'},
+    {w:'tog', e:'🚆'}, {w:'tann',e:'🦷'}, {w:'tre', e:'🌳'},
+    {w:'egg', e:'🥚'},
+    {w:'mus', e:'🐭'}, {w:'mor', e:'👩'}, {w:'mat', e:'🍽️'},
+    {w:'katt',e:'🐱'}, {w:'kake',e:'🍰'}, {w:'kopp',e:'☕'},
+    {w:'lys', e:'💡'}, {w:'løve',e:'🦁'},
+    {w:'nese',e:'👃'}, {w:'natt',e:'🌙'},
+    {w:'ost', e:'🧀'}, {w:'okse',e:'🐂'},
+    {w:'hus', e:'🏠'}, {w:'hest',e:'🐴'}, {w:'hund',e:'🐶'},
+    {w:'fisk',e:'🐟'}, {w:'fugl',e:'🐦'}, {w:'fot', e:'🦶'},
+    {w:'rev', e:'🦊'}, {w:'rose',e:'🌹'}
   ]
 };
 
-/* a wrong tap speaks a WORD starting with that letter — never the letter itself,
-   because iOS says "big S" for S and stays silent on ł                        */
 var LINK = { pl:' jak ', nb:' som i ' };
 
 /* a word starting with each letter, for "s jak słoń". Polish ń, ó and y
    cannot begin a word, so those tiles speak the word they sit in instead. */
 var LETTER = {
-  pl:{ a:'auto', b:'but', e:'ekran', i:'igła', k:'kot', l:'lody', o:'oko',
-       r:'ryba', s:'słoń', t:'tort', u:'ucho', w:'woda', 'ł':'łódka',
-       'ń':null, 'ó':null, y:null },
-  nb:{ a:'and', b:'ball', d:'dør', e:'egg', g:'gutt', i:'is', k:'katt',
-       l:'løve', n:'nese', o:'ost', r:'rev', s:'sol', t:'tog', u:'ugle' }
+  pl:{ a:'auto', b:'but',  c:'cebula', d:'dom',  e:'ekran', g:'gwiazda',
+       i:'igła', k:'kot',  l:'lody',   m:'mama', n:'nos',   o:'oko',
+       p:'pies', r:'ryba', s:'słoń',   t:'tort', u:'ucho',  w:'woda',
+       y:null,  z:'zebra', 'ł':'łódka', 'ś':'śnieg', 'ż':'żaba',
+       'ą':null, 'ę':null, 'ń':null, 'ó':null },
+  nb:{ a:'and',  b:'ball', d:'dør',  e:'egg',  f:'fisk', g:'gutt',
+       h:'hus',  i:'is',   k:'katt', l:'lys',  m:'mus',  n:'nese',
+       o:'ost',  p:'penn', r:'rev',  s:'sol',  t:'tog',  u:'ugle',
+       v:'vann', y:null,  'ø':null }
 };
 
-var EXEMPLAR = {
-  /* PL has no 3-4 letter word starting with E that a 4-year-old knows, so E is
-     absent from Polish stage 1 entirely — a letter that is only ever the WRONG
-     answer teaches "never pick E". She meets E in Norwegian, as egg.          */
-  pl: { s:'słoń', b:'but',  t:'tort' },
-  nb: { s:'sol',  b:'ball', t:'tog', e:'egg' }
+/* the answerable letters, in the order she meets them. activePool() below
+   only exposes the ones she has seen plus a couple of new ones, so growing
+   this list does not flood her with unknowns in a single session.        */
+var POOL = {
+  pl: ['s','b','t','m','k','l','d','n','o','a','r','p','w'],
+  nb: ['s','b','t','e','m','k','l','n','o','h','f','r']
 };
 
-/* %s is the child's name, typed in on the device and kept in local storage.
-   it is deliberately not in this file, which is published publicly.      */
 var SAY = {
   pl:{ hi:'Cześć %s', yay:['Brawo!','Super!','Świetnie!'], done:'Brawo %s! Masz nagrodę' },
   nb:{ hi:'Hei %s',   yay:['Bra!','Flott!','Kjempebra!'],  done:'Bra jobba %s! Du fikk en premie' }
@@ -374,6 +417,19 @@ var UI = {
   nb:{ tap:'trykk på bildet', again:'En gang til', title:'Bra jobba %s!', sub:'Du fikk en premie!',
        board:'Premiene dine', back:'Spill videre', none:'Ingen premier ennå',
        anywhere:'trykk hvor som helst' }
+};
+
+/* [row, column] in a 3x3, exactly as the pips fall on a die */
+var DICE = {
+  1:[[2,2]],
+  2:[[1,1],[3,3]],
+  3:[[1,1],[2,2],[3,3]],
+  4:[[1,1],[1,3],[3,1],[3,3]],
+  5:[[1,1],[1,3],[2,2],[3,1],[3,3]],
+  6:[[1,1],[1,3],[2,1],[2,3],[3,1],[3,3]],
+  7:[[1,1],[1,3],[2,1],[2,2],[2,3],[3,1],[3,3]],
+  8:[[1,1],[1,2],[1,3],[2,1],[2,3],[3,1],[3,2],[3,3]],
+  9:[[1,1],[1,2],[1,3],[2,1],[2,2],[2,3],[3,1],[3,2],[3,3]]
 };
 
 var COUNT_EMOJI = ['🍎','🍓','⭐️','🎈','🐞','🍪','🐟','🚗','🌻','🧸'];
@@ -412,7 +468,8 @@ function theme(c){
 /* stage 1 only in this build. `upper` is per stage, so a later stage flips it. */
 var STAGE = { id:1, missing:'first', options:2, upper:true,
                maxCount:5,        /* how big the numbers get  */
-               numberEvery:4 };   /* how often one comes up   */
+               numberEvery:4,     /* how often one comes up   */
+               newAtOnce:2 };     /* unseen letters in play at a time */
 
 /* ============ state ================================================= */
 var S = { lang:'pl', rate:0.7, goal:20, correct:0, firstTry:0, asked:0,
@@ -622,7 +679,21 @@ function targetsFor(kind){
     for(var i = 1; i <= STAGE.maxCount; i++) a.push(String(i));
     return a;
   }
-  return Object.keys(EXEMPLAR[S.lang]);
+  return POOL[S.lang];
+}
+
+/* Only the letters she has already met, plus a couple she has not. Thirteen
+   letters arriving at once would drop her from 67% to near guessing in a
+   single session; this lets the alphabet arrive two at a time instead.   */
+function activePool(kind){
+  var all = targetsFor(kind);
+  if(kind === 'number') return all;
+  var seen = [], unseen = [];
+  all.forEach(function(t){
+    (MASTERY[mkey(kind, t)] ? seen : unseen).push(t);
+  });
+  if(seen.length < 3) return all.slice(0, 3);
+  return seen.concat(unseen.slice(0, STAGE.newAtOnce));
 }
 
 /* weight = 6 - box, so a letter she keeps missing (box 1) comes up five times
@@ -631,9 +702,16 @@ function targetsFor(kind){
    — Polish had five S-words against three B-words, so S was structurally
    favoured and she saw it twice as often as either letter she did not know. */
 function pickWeighted(kind, pool){
+  var now = Date.now();
   var total = 0, w = pool.map(function(t){
     var m = MASTERY[mkey(kind, t)];
     var weight = 6 - (m ? m.box : 1);
+    /* days since she last saw it. a mastered letter drops to weight 1 for
+       the rest of the day and climbs back as it goes stale, which is what
+       keeps it alive without re-drilling what she just nailed.          */
+    if(m && m.last){
+      weight += Math.min(4, Math.floor((now - m.last) / 86400000));
+    }
     total += weight;
     return weight;
   });
@@ -643,21 +721,15 @@ function pickWeighted(kind, pool){
 }
 
 function chooseTarget(kind){
-  var pool = targetsFor(kind);
+  var pool = activePool(kind);
 
   /* do not ask the same thing twice in a row if there is anything else */
   var fresh = pool.filter(function(t){ return S.recentT.indexOf(kind + t) < 0; });
   if(fresh.length >= 2) pool = fresh;
 
-  /* one in five keeps something she already owns alive, so mastery decays
-     from disuse rather than being assumed permanent                       */
-  if(Math.random() < 0.2){
-    var owned = pool.filter(function(t){
-      var m = MASTERY[mkey(kind, t)];
-      return m && m.box >= 4;
-    });
-    if(owned.length) return owned[(Math.random() * owned.length) | 0];
-  }
+  /* the flat one-in-five retention draw was removed: with a growing pool it
+     all landed on the single mastered letter and put it back on top. decay
+     is handled by the staleness term in the weight instead.              */
   return pickWeighted(kind, pool);
 }
 
@@ -725,10 +797,15 @@ function render(){
     pic.textContent = '';
     pic.className = 'pic counting';
     var grid = document.createElement('div');
-    grid.className = 'cnt' + (S.word.n > 6 ? ' many' : '');
+    var spots = DICE[S.word.n];
+    grid.className = 'cnt' + (spots ? '' : ' wide');
     for(var k = 0; k < S.word.n; k++){
       var it = document.createElement('span');
       it.textContent = S.word.e;
+      if(spots){
+        it.style.gridRow = spots[k][0];
+        it.style.gridColumn = spots[k][1];
+      }
       grid.appendChild(it);
     }
     pic.appendChild(grid);
@@ -760,7 +837,9 @@ function render(){
       wd.appendChild(c);
     }
 
-    var known = Object.keys(EXEMPLAR[S.lang]).filter(function(l){ return l !== S.answer; });
+    /* distract only with letters she has met, so a question never turns on
+       a symbol she has never been shown */
+    var known = activePool('letter').filter(function(l){ return l !== S.answer; });
     choices = [S.answer, known[(Math.random() * known.length) | 0]];
   }
 
@@ -840,19 +919,28 @@ function openBoard(){
   var album   = Math.floor(S.prizes.length / PRIZES.length);
   var inAlbum = S.prizes.slice(album * PRIZES.length);
 
-  inAlbum.forEach(function(x){
+  inAlbum.forEach(function(x, i){
     var e = document.createElement('span');
     e.textContent = x;
+    if(i === inAlbum.length - 1) e.className = 'fresh';   /* the newest one */
     e.addEventListener('click', function(ev){
       ev.stopPropagation();
       $('bigprizeface').textContent = x;
       $('bigprize').classList.add('on');
+      tone([784, 1047, 1319]);
     });
     g.appendChild(e);
   });
   for(var i = inAlbum.length; i < PRIZES.length; i++){
     var d = document.createElement('div'); d.className = 'slot'; g.appendChild(d);
   }
+  var bar = document.createElement('div');
+  bar.className = 'albumbar';
+  var fill = document.createElement('i');
+  fill.style.width = Math.round(100 * inAlbum.length / PRIZES.length) + '%';
+  bar.appendChild(fill);
+  g.parentNode.insertBefore(bar, g);
+
   $('btitle').textContent = UI[S.lang].board +
       (album ? '  ' + (album + 1) : '') +
       '   ' + inAlbum.length + '/' + PRIZES.length;
@@ -884,6 +972,23 @@ function awardPrize(){
   return pool[(Math.random()*pool.length)|0];
 }
 
+function confetti(){
+  var host = $('confetti');
+  host.textContent = '';
+  host.className = 'confetti on';
+  var bits = ['🎉','✨','⭐️','🎊','💫','🌟'];
+  for(var i = 0; i < 26; i++){
+    var b = document.createElement('i');
+    b.textContent = bits[(Math.random() * bits.length) | 0];
+    b.style.left = (Math.random() * 100) + '%';
+    b.style.animationDelay = (Math.random() * 0.7).toFixed(2) + 's';
+    b.style.animationDuration = (1.8 + Math.random() * 1.6).toFixed(2) + 's';
+    b.style.fontSize = (18 + Math.random() * 20).toFixed(0) + 'px';
+    host.appendChild(b);
+  }
+  setTimeout(function(){ host.className = 'confetti'; host.textContent = ''; }, 3600);
+}
+
 function finish(){
   var st = awardPrize();
   if(!S.practice){
@@ -903,6 +1008,7 @@ function finish(){
     var e = document.createElement('span'); e.textContent = s; book.appendChild(e);
   });
   tone([523,659,784,1047]);
+  confetti();
   setTimeout(function(){ say(nm(SAY[S.lang].done)); }, 350);
   show('reward');
 }
@@ -1096,7 +1202,9 @@ function openStats(){
           on two separate days (the rule you chose) ---- */
   host.appendChild(el('div','shead','Stage ' + STAGE.id + ' — clears at 80% on two days'));
   [['pl','Polish'],['nb','Norwegian']].forEach(function(L){
-    var targets = Object.keys(EXEMPLAR[L[0]]);
+    var saveLang = S.lang; S.lang = L[0];
+    var targets = activePool('letter');
+    S.lang = saveLang;
     var ready = targets.filter(function(t){
       var m = MASTERY[L[0]+':L:'+t];
       if(!m || m.box < 4) return false;
@@ -1207,7 +1315,12 @@ $('goal').addEventListener('input', function(e){
   $('goalv').textContent = S.goal; save(); drawStars();
 });
 var dev = (location.search.match(/dev=([a-z]+)/) || [])[1];
-if(dev === 'play'){ S.word = nextWord(); render(); show('play'); }
+var devMode = (location.search.match(/[?&]m=([a-z]+)/) || [])[1];
+if(devMode) S.mode = devMode;
+var devN = (location.search.match(/[?&]n=(\d+)/) || [])[1];
+if(dev === 'play'){ S.word = nextWord();
+  if(devN && S.word.kind === 'number') S.word.n = +devN;
+  render(); show('play'); }
 else if(dev === 'welcome'){ $('wtitle').textContent = nm(SAY[S.lang].hi) + '!'; show('welcome'); }
 else if(dev === 'probe'){ window.__probe = { chooseTarget:chooseTarget, nextWord:nextWord }; }
 else if(dev === 'lang'){ show('lang'); }

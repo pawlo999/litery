@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Paste her data</title>
+<style>
+  :root{ --bg:#14161c; --fg:#eceff5; --dim:#9aa3b2; --accent:#7c5cff;
+         --ok:#3ddc84; --bad:#ff6b6b; --card:#1e2230; --line:#2b3040; }
+  *{box-sizing:border-box;}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--fg);
+       font:500 17px/1.5 ui-rounded,-apple-system,system-ui,sans-serif;
+       padding:calc(22px + env(safe-area-inset-top,0px)) 18px 40px;}
+  h1{font-size:21px;margin:0 0 4px;}
+  p.sub{color:var(--dim);font-size:15px;margin:0 0 18px;}
+  textarea{width:100%;height:240px;background:#0b0d12;color:#cfd5e1;border:1px solid var(--line);
+           border-radius:14px;padding:12px;font:13px/1.45 ui-monospace,monospace;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  button{font:700 18px/1 ui-rounded,system-ui,sans-serif;color:#fff;background:var(--accent);
+         border:0;border-radius:14px;padding:16px 22px;min-height:54px;}
+  button.alt{background:#39415a;}
+  button:active{transform:scale(.97);}
+  #out{margin-top:18px;background:var(--card);border-radius:14px;padding:14px;font-size:15px;
+       display:none;}
+  #out.on{display:block;}
+  .ok{color:var(--ok);} .bad{color:var(--bad);}
+  table{width:100%;border-collapse:collapse;font-size:15px;margin-top:8px;}
+  td{padding:4px 0;border-bottom:1px solid var(--line);}
+  td.r{text-align:right;color:var(--dim);}
+</style>
+</head>
+<body>
+<h1>Paste her data</h1>
+<p class="sub">In the app: gear (long press) → What she knows → Copy all data.
+   Then paste into the box and press Save. It lands on the laptop.</p>
+
+<textarea id="box" placeholder="paste here" autocomplete="off" spellcheck="false"></textarea>
+
+<div class="row">
+  <button id="save">Save to laptop</button>
+  <button class="alt" id="clear">Clear</button>
+</div>
+
+<div id="out"></div>
+
+<script>
+(function(){
+  var box = document.getElementById('box'),
+      out = document.getElementById('out');
+
+  function show(html, cls){
+    out.className = 'on';
+    out.innerHTML = '<span class="' + (cls || '') + '">' + html + '</span>';
+  }
+
+  document.getElementById('clear').addEventListener('click', function(){
+    box.value = ''; out.className = ''; box.focus();
+  });
+
+  document.getElementById('save').addEventListener('click', function(){
+    var txt = (box.value || '').trim();
+    if(!txt){ show('Nothing pasted yet.', 'bad'); return; }
+
+    var d;
+    try { d = JSON.parse(txt); }
+    catch(e){ show('That is not valid JSON — ' + e.message, 'bad'); return; }
+
+    var log = Array.isArray(d.log) ? d.log : [],
+        att = log.filter(function(r){ return r.k === 'L' || r.k === 'N'; }).length,
+        prz = log.filter(function(r){ return r.k === 'P'; }).length,
+        mst = d.mastery ? Object.keys(d.mastery).length : 0;
+
+    if(!att && !mst){ show('That payload has no attempts and no mastery — wrong text?', 'bad'); return; }
+
+    show('Sending…');
+    fetch('sync', { method:'POST', headers:{'Content-Type':'application/json'}, body: txt })
+      .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+      .then(function(res){
+        if(!res.ok) throw new Error('server said no');
+        show('<b class="ok">Saved.</b><table>' +
+             '<tr><td>attempts</td><td class="r">' + att + '</td></tr>' +
+             '<tr><td>prizes earned</td><td class="r">' + prz + '</td></tr>' +
+             '<tr><td>prizes held</td><td class="r">' + ((d.prizes||[]).join(' ')) + '</td></tr>' +
+             '<tr><td>mastery items</td><td class="r">' + mst + '</td></tr>' +
+             '<tr><td>build</td><td class="r">' + (d.build || '?') + '</td></tr>' +
+             '</table>');
+      })
+      .catch(function(e){ show('Could not reach the laptop — ' + e.message, 'bad'); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -48,10 +48,19 @@ answer usually means someone spoke to her, not that she was thinking.
 
 ## 3 · What the app does with it
 
-**Choosing the next question.** *(built, b25)* A weighted draw from the current
-stage, weight `6 − box`, so a letter in box 1 comes up five times as often as
-one in box 5. A cooldown stops immediate repeats. One question in five is drawn
-from already-mastered items so they do not decay.
+**Choosing the next question.** *(built, b25; revised b32)* A weighted draw from
+the current stage, weight `6 − box + days since last seen (capped at 4)`, so a
+letter in box 1 comes up five times as often as one in box 5, and a mastered
+letter steps aside for the rest of the day then climbs back as it goes stale.
+
+The first version used a flat "one question in five is drawn from mastered
+items". With three letters that was fine; as soon as the pool grew, the whole
+20 % landed on the single mastered letter and put it back on top of the
+distribution. Staleness does the same job without the cliff.
+
+**How many letters are in play** *(b32)* is capped separately: she sees the
+letters she has already met plus `newAtOnce` (2) she has not. Thirteen letters
+arriving at once would drop her from 67 % to near guessing in one session.
 
 The deeper fix was ordering: the letter is chosen **first**, and the word is
 picked to carry it. Previously a word was drawn at random and the letter fell
@@ -133,7 +142,7 @@ is the single largest piece of work in this plan, and it is content, not code.
 | S2 | parent dashboard — make the data visible | **done, b17** |
 | S3 | weighted selection — the app starts adapting | **done, b25** |
 | S4 | auto-advancement + L2, L3 | next |
-| S5 | content: 60–80 words per language | long pole |
+| S5 | content: 60–80 words per language | **done, b32** — 13 PL letters / 39 words, 12 NO / 32 |
 | S6 | L4–L6 position variants | |
 | S7 | case axis | |
 | S8 | N2–N4 | |

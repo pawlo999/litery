@@ -600,7 +600,7 @@ console.log('\n[13] WEIGHTED SELECTION — her real problem');
   await sleep(200);
   ok(!!a.w.__probe, 'probe hook available');
 
-  const N = 3000, seen = { s:0, t:0, b:0 };
+  const N = 3000, seen = { s:0, t:0, b:0, m:0, k:0 };
   for (let i = 0; i < N; i++) seen[a.w.__probe.chooseTarget('letter')]++;
   const pct = k => Math.round(100 * seen[k] / N);
   console.log('  over ' + N + ' draws:  S ' + pct('s') + '%   T ' + pct('t') + '%   B ' + pct('b') + '%');
@@ -610,10 +610,26 @@ console.log('\n[13] WEIGHTED SELECTION — her real problem');
      'S=' + seen.s + ' T=' + seen.t + ' B=' + seen.b);
   // design predicts ~27%: the 20% retention draw has only one mastered letter
   // to land on, plus 80% x 1/11 from the weighting. spreads as more are learned.
-  ok(pct('s') >= 18 && pct('s') <= 34,
-     'but the mastered letter still appears, so it does not decay', pct('s') + '%');
+  // a letter mastered TODAY drops to the floor weight — there is no point
+  // re-drilling it in the same session. staleness brings it back later.
+  ok(pct('s') >= 2 && pct('s') <= 10,
+     'a letter mastered today steps aside for the rest of the session', pct('s') + '%');
   ok(Math.abs(seen.t - seen.b) < N * 0.08, 'the two unknown letters get similar share',
      'T=' + seen.t + ' B=' + seen.b);
+
+  // and it must come back once it has gone stale, or mastery rots unseen
+  const stale = Object.assign({}, mastery);
+  stale['pl:L:s'] = Object.assign({}, stale['pl:L:s'],
+                                  { last: Date.now() - 4 * 86400000 });
+  const b2 = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+                    restoredV:2, __mastery:stale }, '?dev=probe');
+  await sleep(200);
+  const seen2 = { s:0, t:0, b:0, m:0, k:0 };
+  for (let i = 0; i < N; i++) seen2[b2.w.__probe.chooseTarget('letter')]++;
+  const p2 = Math.round(100 * seen2.s / N);
+  console.log('  same letters, S untouched for 4 days: S ' + p2 + '%');
+  ok(p2 >= 14, 'A STALE MASTERED LETTER COMES BACK', p2 + '%');
+  b2.w.close();
 
   // and the word list must no longer skew the letter
   const words = {};
@@ -635,6 +651,9 @@ console.log('\n[13] WEIGHTED SELECTION — her real problem');
   const N = 3000, seen = { s:0, t:0, b:0 };
   for (let i = 0; i < N; i++) seen[a.w.__probe.chooseTarget('letter')]++;
   console.log('  fresh child: S ' + seen.s + '  T ' + seen.t + '  B ' + seen.b);
+  ok(seen.s + seen.t + seen.b === N,
+     'a child with nothing learned only meets the first three letters',
+     JSON.stringify(seen));
   const lo = Math.min(seen.s, seen.t, seen.b), hi = Math.max(seen.s, seen.t, seen.b);
   ok(hi - lo < N * 0.08, 'with nothing learned yet, the three letters are even',
      lo + '..' + hi);
