@@ -272,6 +272,7 @@
 <div class="screen" id="board">
   <button class="backx" id="backx">←</button>
   <div class="btitle" id="btitle">Twoje nagrody</div>
+  <div class="albumbar"><i id="albumfill"></i></div>
   <div class="grid" id="bgrid"></div>
   <div class="bhint" id="bhint">dotknij gdziekolwiek</div>
 </div>
@@ -343,7 +344,7 @@
 (function () {
 'use strict';
 
-var BUILD = 32;   /* visible bottom-right and in the parent panel */
+var BUILD = 33;   /* visible bottom-right and in the parent panel */
 
 /* ============ content ============================================== */
 /* Uppercase is what she SEES. The lowercase `w` is what the VOICE gets. */
@@ -934,12 +935,8 @@ function openBoard(){
   for(var i = inAlbum.length; i < PRIZES.length; i++){
     var d = document.createElement('div'); d.className = 'slot'; g.appendChild(d);
   }
-  var bar = document.createElement('div');
-  bar.className = 'albumbar';
-  var fill = document.createElement('i');
-  fill.style.width = Math.round(100 * inAlbum.length / PRIZES.length) + '%';
-  bar.appendChild(fill);
-  g.parentNode.insertBefore(bar, g);
+  $('albumfill').style.width =
+      Math.round(100 * inAlbum.length / PRIZES.length) + '%';
 
   $('btitle').textContent = UI[S.lang].board +
       (album ? '  ' + (album + 1) : '') +

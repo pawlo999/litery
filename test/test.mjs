@@ -839,6 +839,52 @@ console.log('\n[15] IMPORT — moving her between origins');
   a.w.close();
 }
 
+console.log('\n[16] OPENING A SCREEN TWICE MUST NOT ACCUMULATE');
+{
+  // seeded, so the dashboard actually has rows to accumulate
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters',
+                   prizes:['🍭','🦖','⭐️'], day:'', restoredV:2,
+                   __mastery: {
+                     'pl:L:s': { n:12, ft:9, box:5, streak:3, last:Date.now(), ms:[3400] },
+                     'pl:L:t': { n:6,  ft:4, box:1, streak:0, last:Date.now(), ms:[3600] },
+                     'pl:N:3': { n:4,  ft:3, box:3, streak:1, last:Date.now(), ms:[2100] }
+                   },
+                   __log: [{ t:Date.now(), l:'pl', k:'L', s:1, x:'s', d:'b', o:2, w:0, ms:2200, h:0, c:0 }] });
+  await sleep(200);
+  a.click('#pick-profile'); await sleep(2500);
+  a.click('.flag[data-lang="pl"]'); await sleep(100);
+
+  const counts = [];
+  for (let i = 0; i < 4; i++) {
+    a.click('#trophy'); await sleep(60);
+    counts.push({
+      bars:  a.d.querySelectorAll('#board .albumbar').length,
+      tiles: a.d.querySelectorAll('#bgrid span').length,
+      slots: a.d.querySelectorAll('#bgrid .slot').length
+    });
+    a.click('#backx'); await sleep(60);
+  }
+  console.log('  four opens: ' + JSON.stringify(counts));
+  ok(counts.every(c => c.bars === 1), 'EXACTLY ONE PROGRESS BAR, HOWEVER OFTEN IT IS OPENED',
+     JSON.stringify(counts.map(c => c.bars)));
+  ok(counts.every(c => c.tiles === 3 && c.slots === 13),
+     'and the album does not grow either', JSON.stringify(counts[3]));
+
+  // same check for the dashboard, which builds its rows the same way
+  const st = [];
+  for (let i = 0; i < 3; i++) {
+    a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown'));
+    await sleep(1400);
+    a.click('#statsbtn'); await sleep(60);
+    st.push(a.d.querySelectorAll('#sbody .shead').length);
+    a.click('#sback'); await sleep(60);
+  }
+  console.log('  dashboard sections over three opens: ' + JSON.stringify(st));
+  ok(st[0] > 0, 'the dashboard actually had sections to count', JSON.stringify(st));
+  ok(st[0] === st[1] && st[1] === st[2], 'the dashboard does not accumulate rows', JSON.stringify(st));
+  a.w.close();
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('HARNESS ERROR', e); process.exit(2); });
