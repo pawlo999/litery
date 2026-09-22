@@ -25,6 +25,17 @@ MAX  = 4 * 1024 * 1024
 
 class Handler(http.server.SimpleHTTPRequestHandler):
 
+    def guess_type(self, path):
+        # SimpleHTTPRequestHandler sends 'application/json' with no charset, so
+        # Safari decoded the payload as Latin-1 and every emoji came through as
+        # mojibake when copied. Declare the encoding for anything textual.
+        t = super().guess_type(path)
+        base = t.split(';')[0].strip()
+        if base.startswith('text/') or base in (
+                'application/json', 'application/javascript', 'application/manifest+json'):
+            return base + '; charset=utf-8'
+        return t
+
     def end_headers(self):
         self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
         self.send_header('Pragma', 'no-cache')
@@ -48,13 +59,32 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_error(400, 'not json'); return
 
         os.makedirs(DATA, exist_ok=True)
-        stamp = datetime.datetime.now().strftime('%Y-%m-%d')
-        # fixed names: nothing from the request reaches the filesystem
-        for name in ('latest.json', 'snapshot-%s.json' % stamp):
-            with open(os.path.join(DATA, name), 'w', encoding='utf-8') as f:
-                json.dump(payload, f, ensure_ascii=False)
-
         rows = len(payload.get('log') or [])
+
+        # Every sync gets its own snapshot, never overwritten. A device whose
+        # storage was wiped posted an empty payload once and erased the only
+        # server-side record of 59 attempts; a per-day filename was not enough.
+        stamp = datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')
+        with open(os.path.join(DATA, 'snapshot-%s.json' % stamp), 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False)
+
+        # latest.json only moves forward. A poorer payload is kept as a
+        # snapshot but does not become the record.
+        latest = os.path.join(DATA, 'latest.json')
+        prev_rows = -1
+        if os.path.exists(latest):
+            try:
+                with open(latest, encoding='utf-8') as f:
+                    prev_rows = len(json.load(f).get('log') or [])
+            except Exception:
+                prev_rows = -1
+        if rows >= prev_rows:
+            with open(latest, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, ensure_ascii=False)
+        else:
+            sys.stderr.write('sync: REFUSED to overwrite latest.json '
+                             '(%d rows incoming vs %d on record)\n' % (rows, prev_rows))
+
         sys.stderr.write('sync: %d log rows, %d mastery items\n'
                          % (rows, len(payload.get('mastery') or {})))
         body = json.dumps({'ok': True, 'rows': rows}).encode()
