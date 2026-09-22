@@ -1,0 +1,5 @@
+# her learning data — stays on this machine, never published
+data/
+
+# test dependencies
+test/node_modules/

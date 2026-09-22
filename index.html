@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#8b5cf6">
+<title>Litery</title>
+<style>
+  :root{
+    --main:#8b5cf6; --main-dark:#6d3fd6; --main-soft:#8b5cf638; --on-main:#fff;
+    --bg:#e6d9fb; --bg2:#cdb4f5; --ink:#241634; --dim:#6b5a80;
+    --card:#ffffff; --line:#c2a9e8;
+    --good:#22c55e; --good-dark:#15803d; --dead:#c2b6cf;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  /* the canvas under the app gets the gradient's end colour, so nothing white
+     can ever show through, and body is pinned to the viewport with inset:0    */
+  html{height:100%;background:var(--bg2);}
+  html.dark{background:#14161c;}
+  html,body{margin:0;overflow:hidden;}
+  body{position:fixed;inset:0;
+       background:linear-gradient(168deg,var(--bg) 0%,var(--bg2) 100%);color:var(--ink);
+       font:700 18px/1.4 ui-rounded,"SF Pro Rounded",system-ui,-apple-system,sans-serif;
+       display:flex;flex-direction:column;}
+
+  .screen{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;
+          padding:calc(20px + env(safe-area-inset-top,0px)) 20px 20px;text-align:center;}
+  .screen.on{display:flex;}
+
+  /* ---------- profile ---------- */
+  .hi{font-size:26px;color:var(--dim);margin-bottom:10px;}
+  .avatar{width:min(48vw,200px);height:min(48vw,200px);border-radius:50%;background:var(--main);
+          display:flex;align-items:center;justify-content:center;font-size:min(27vw,112px);
+          border:0;padding:0;box-shadow:0 12px 0 var(--main-dark),0 22px 40px rgba(40,10,80,.22);}
+  .avatar:active{transform:translateY(7px);box-shadow:0 5px 0 var(--main-dark);}
+  .pname{font-size:44px;font-weight:800;margin-top:26px;}
+  .nameinput{font:800 34px/1 ui-rounded,system-ui,sans-serif;text-align:center;
+             border:0;border-radius:20px;padding:16px 20px;width:min(76vw,360px);
+             background:var(--card);color:var(--ink);box-shadow:0 6px 0 var(--line);
+             margin-bottom:22px;}
+  .setuphint{font-size:14px;color:var(--dim);margin-top:18px;max-width:320px;}
+
+  /* ---------- welcome ---------- */
+  .wav{width:min(46vw,200px);height:min(46vw,200px);border-radius:50%;background:var(--main);
+       display:flex;align-items:center;justify-content:center;font-size:min(26vw,112px);
+       box-shadow:0 12px 0 var(--main-dark),0 22px 40px rgba(40,10,80,.22);}
+  .wtitle{font-size:clamp(32px,6.5vh,50px);font-weight:800;margin-top:28px;}
+
+  /* ---------- language ---------- */
+  .flags{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;}
+  .flag{width:200px;height:162px;border-radius:34px;background:var(--card);
+        border:0;font-size:88px;display:flex;align-items:center;justify-content:center;
+        padding:0;box-shadow:0 9px 0 var(--line),0 18px 34px rgba(40,10,80,.16);}
+  .flag:active{transform:translateY(6px);box-shadow:0 3px 0 var(--line);}
+
+  /* ---------- play ---------- */
+  #play{justify-content:flex-start;padding:0;}
+  .top{width:100%;display:flex;align-items:center;gap:10px;
+       padding:calc(14px + env(safe-area-inset-top,0px)) 18px 2px;}
+  .stars{flex:1;display:flex;gap:4px;align-items:center;}
+  .st{border-radius:50%;background:rgba(255,255,255,.5);box-shadow:inset 0 0 0 2px var(--line);}
+  .st.f{background:var(--main);box-shadow:none;}
+  .goalpin{font-size:19px;margin-left:5px;opacity:.85;}
+  .trophy{background:transparent;border:0;padding:0 4px;min-width:0;
+          font:800 20px/1 ui-rounded,system-ui,sans-serif;color:var(--ink);
+          display:flex;align-items:center;gap:5px;flex:none;margin:0;}
+  .gear{width:42px;height:42px;border-radius:50%;background:transparent;border:0;
+        font-size:19px;color:var(--dim);opacity:.5;padding:0;flex:none;}
+
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;
+         justify-content:space-evenly;width:100%;padding:2px 14px 18px;}
+  .pic{font-size:clamp(104px,21vh,180px);line-height:1;border:0;margin:0;
+       background:rgba(255,255,255,.66);border-radius:40px;padding:12px 34px;
+       box-shadow:0 10px 28px rgba(40,10,80,.13);}
+  .pic:active{transform:scale(.96);}
+  .picwrap{display:flex;flex-direction:column;align-items:center;gap:12px;}
+  .hint{font-size:16px;color:var(--dim);height:20px;font-weight:600;}
+  .pic.counting{padding:16px 20px;}
+  .cnt{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;align-items:center;
+       max-width:min(62vw,430px);}
+  .cnt span{font-size:clamp(38px,7.6vh,64px);line-height:1;}
+  .cnt.many span{font-size:clamp(28px,5.6vh,48px);}
+  .band{display:none;position:fixed;top:0;left:0;right:0;z-index:30;
+        background:#7a2e39;color:#fff;font-size:12px;font-weight:700;
+        letter-spacing:.06em;text-align:center;
+        padding:calc(3px + env(safe-area-inset-top,0px)) 8px 3px;}
+  .build{position:fixed;bottom:7px;right:12px;font-size:11px;color:var(--dim);
+         opacity:.4;font-weight:600;z-index:20;}
+
+  /* one tile per letter, so a word is visibly made of parts */
+  .word{display:flex;gap:9px;justify-content:center;}
+  .cell{width:clamp(58px,10vh,88px);height:clamp(70px,12.4vh,104px);border-radius:20px;
+        background:var(--card);color:var(--ink);display:flex;align-items:center;
+        justify-content:center;font-size:clamp(38px,7vh,60px);font-weight:800;
+        box-shadow:0 5px 0 rgba(70,30,120,.13);}
+  .cell.tappable{cursor:pointer;}
+  .cell.tappable:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(70,30,120,.13);}
+  .cell.gap{background:rgba(255,255,255,.32);box-shadow:inset 0 0 0 4px var(--main);}
+  .cell.gap.in{background:var(--good);color:#fff;box-shadow:0 5px 0 var(--good-dark);}
+
+  .opts{display:flex;gap:26px;justify-content:center;}
+  .opt{width:clamp(110px,16.5vh,142px);height:clamp(110px,16.5vh,142px);border-radius:30px;
+       background:var(--main);color:var(--on-main);font-size:clamp(46px,7.8vh,62px);
+       font-weight:800;border:0;padding:0;box-shadow:0 8px 0 var(--main-dark);}
+  .opt:active{transform:translateY(6px);box-shadow:0 2px 0 var(--main-dark);}
+  .opt.good{background:var(--good);box-shadow:0 8px 0 var(--good-dark);}
+  .opt.dead{background:var(--dead);box-shadow:0 8px 0 rgba(0,0,0,.10);opacity:.55;}
+  .shake{animation:sh .4s;}
+  @keyframes sh{0%,100%{transform:translateX(0)}20%{transform:translateX(-11px)}
+                40%{transform:translateX(11px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
+  .pop{animation:pp .45s;}
+  @keyframes pp{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+
+  /* ---------- prize board ---------- */
+  .btitle{font-size:clamp(26px,5.2vh,40px);font-weight:800;margin-bottom:20px;}
+  .grid{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;
+        max-width:640px;margin-bottom:26px;}
+  .grid span{font-size:clamp(40px,7.5vh,58px);line-height:1;
+             background:var(--card);border-radius:20px;padding:8px 10px;
+             box-shadow:0 5px 0 rgba(70,30,120,.12);}
+  .grid .slot{width:clamp(56px,9.4vh,78px);height:clamp(56px,9.4vh,78px);
+              border-radius:20px;background:rgba(255,255,255,.34);
+              box-shadow:inset 0 0 0 4px var(--line);}
+  .bnone{font-size:19px;color:var(--dim);margin-bottom:26px;}
+  .backx{position:fixed;left:16px;top:calc(14px + env(safe-area-inset-top,0px));
+         width:60px;height:60px;border-radius:50%;background:var(--main);
+         color:var(--on-main);border:0;padding:0;z-index:9;
+         font:800 32px/1 ui-rounded,system-ui,sans-serif;
+         box-shadow:0 6px 0 var(--main-dark);}
+  .backx:active{transform:translateY(5px);box-shadow:0 2px 0 var(--main-dark);}
+  .bhint{font-size:15px;color:var(--dim);margin-top:6px;font-weight:600;}
+  .bigprize{display:none;position:fixed;left:0;right:0;top:-140px;bottom:-140px;
+            z-index:40;align-items:center;
+            justify-content:center;background:rgba(20,8,40,.78);
+            -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);}
+  .bigprize.on{display:flex;}
+  .bigprize span{font-size:min(56vw,340px);line-height:1;animation:pp .45s;}
+
+  /* ---------- reward ---------- */
+  .big{font-size:clamp(96px,19vh,150px);line-height:1;}
+  .rtitle{font-size:clamp(30px,5.6vh,42px);font-weight:800;margin:16px 0 4px;}
+  .rsub{font-size:20px;color:var(--dim);margin-bottom:22px;}
+  .book{display:flex;flex-wrap:wrap;gap:11px;justify-content:center;max-width:540px;margin-bottom:26px;}
+  .book span{font-size:38px;background:var(--card);border-radius:16px;padding:6px 8px;
+             box-shadow:0 4px 0 rgba(70,30,120,.12);}
+  .rbtns{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;}
+  .go{background:var(--main);color:var(--on-main);border:0;border-radius:22px;
+      padding:18px 32px;font-size:22px;font-weight:800;box-shadow:0 7px 0 var(--main-dark);}
+  .go:active{transform:translateY(5px);box-shadow:0 2px 0 var(--main-dark);}
+  .go.ghost{background:var(--card);color:var(--ink);box-shadow:0 7px 0 var(--line);
+            min-width:92px;font-size:30px;padding:14px 24px;}
+  .go.ghost:active{box-shadow:0 2px 0 var(--line);}
+
+  /* ---------- parent ---------- */
+  /* pinned to the viewport rather than relying on being a flex child that
+     fills it — the same fix that killed the white strip on the game screen */
+  #stats,#parent{justify-content:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  #stats.on,#parent.on{position:fixed;inset:0;z-index:25;background:#14161c;}
+  #stats{background:#14161c;color:#eceff5;}
+  #stats h3{margin:4px 0 12px;font-size:19px;font-weight:800;}
+  .sbody{width:100%;max-width:560px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+         text-align:left;font-size:14px;padding-right:4px;}
+  .shead{color:#9aa3b2;font-size:12px;letter-spacing:.09em;text-transform:uppercase;
+         font-weight:700;margin:16px 0 7px;}
+  .srow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding-top:10px;}
+  .item{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid #262b38;}
+  .item .g{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;
+           justify-content:center;font-weight:800;font-size:17px;color:#0d0f14;flex:none;}
+  .item .bar{flex:1;height:7px;border-radius:4px;background:#262b38;overflow:hidden;}
+  .item .bar i{display:block;height:100%;border-radius:4px;}
+  .item .nums{width:112px;text-align:right;color:#9aa3b2;font-size:12px;flex:none;}
+  .dtab{width:100%;border-collapse:collapse;font-size:13px;}
+  .dtab td{padding:5px 6px;border-bottom:1px solid #262b38;}
+  .dtab td.r{text-align:right;color:#9aa3b2;}
+  .empty{color:#9aa3b2;padding:8px 0;}
+  .dump{display:none;width:100%;max-width:560px;height:70px;margin-top:8px;font-size:11px;
+        background:#0b0d12;color:#7f8899;border:1px solid #262b38;border-radius:8px;}
+  #parent{background:#14161c;color:#eceff5;}
+  #parent h3{margin:0 0 18px;font-size:19px;font-weight:800;}
+  .prow{width:100%;max-width:420px;text-align:left;margin-bottom:20px;}
+  .prow label{display:block;font-size:14px;color:#9aa3b2;margin-bottom:7px;font-weight:600;}
+  .prow input[type=range]{width:100%;accent-color:#7c5cff;height:32px;}
+  .pbtn{background:#39415a;color:#fff;border:0;border-radius:12px;padding:14px 20px;
+        font-size:16px;font-weight:700;margin:0 8px 8px 0;}
+  .pbtn.warn{background:#7a2e39;}
+  .pbtn.on{background:#7c5cff;box-shadow:inset 0 0 0 2px #b9a6ff;}
+</style>
+</head>
+<body>
+
+<!-- 1 ------------------------------------------------------------------ -->
+<div class="screen" id="setup">
+  <div class="hi">Who is playing?</div>
+  <input id="nameinput" class="nameinput" type="text" autocomplete="off"
+         autocapitalize="words" maxlength="16" placeholder="name">
+  <button class="go" id="namego">OK</button>
+  <div class="setuphint">Kept on this iPad only. Change it in parent settings.</div>
+</div>
+
+<div class="screen on" id="profile">
+  <div class="hi" id="greet">Cześć!</div>
+  <button class="avatar" id="pick-profile">🦄</button>
+  <div class="pname" id="pname">—</div>
+  <div class="build" id="build"></div>
+</div>
+
+<!-- 1b ----------------------------------------------------------------- -->
+<div class="screen" id="welcome">
+  <div class="wav pop" id="wav">🦄</div>
+  <div class="wtitle" id="wtitle"></div>
+</div>
+
+<!-- 2 ------------------------------------------------------------------ -->
+<div class="screen" id="lang">
+  <div class="flags">
+    <button class="flag" data-lang="pl">🇵🇱</button>
+    <button class="flag" data-lang="nb">🇳🇴</button>
+  </div>
+</div>
+
+<!-- 3 ------------------------------------------------------------------ -->
+<div class="band" id="practiceband">TEST RUN — nothing is recorded</div>
+<div class="screen" id="play">
+  <div class="top">
+    <div class="stars" id="stars"></div>
+    <button class="gear" id="navback">←</button>
+    <button class="trophy" id="trophy">🏆<span id="tcount">0</span></button>
+    <button class="gear" id="gear">⚙</button>
+  </div>
+  <div class="stage">
+    <div class="picwrap">
+      <button class="pic" id="pic">🐘</button>
+      <div class="hint" id="hint"></div>
+    </div>
+    <div class="word" id="word"></div>
+    <div class="opts" id="opts"></div>
+  </div>
+</div>
+
+<!-- 3b ----------------------------------------------------------------- -->
+<div class="bigprize" id="bigprize"><span id="bigprizeface">⭐️</span></div>
+<div class="screen" id="board">
+  <button class="backx" id="backx">←</button>
+  <div class="btitle" id="btitle">Twoje nagrody</div>
+  <div class="grid" id="bgrid"></div>
+  <div class="bhint" id="bhint">dotknij gdziekolwiek</div>
+</div>
+
+<!-- 4 ------------------------------------------------------------------ -->
+<div class="screen" id="reward">
+  <div class="big pop" id="prize">⭐️</div>
+  <div class="rtitle" id="rtitle"></div>
+  <div class="rsub" id="rsub">Masz nagrodę!</div>
+  <div class="book" id="book"></div>
+  <div class="rbtns">
+    <button class="go" id="again">Jeszcze raz</button>
+    <button class="go ghost" id="toboard">🏆</button>
+    <button class="go ghost" id="swaplang">🇳🇴</button>
+  </div>
+</div>
+
+<!-- 5 ------------------------------------------------------------------ -->
+<div class="screen" id="stats">
+  <h3>What she knows</h3>
+  <div class="sbody" id="sbody"></div>
+  <div class="srow">
+    <button class="pbtn" id="copydata">Copy all data</button>
+    <button class="pbtn" id="sback">Back</button>
+  </div>
+  <textarea id="dump" class="dump"></textarea>
+</div>
+
+<div class="screen" id="parent">
+  <h3>Parent settings</h3>
+  <div class="prow">
+    <label>Speech speed — <b id="ratev">0.80</b>×</label>
+    <input type="range" id="rate" min="0.3" max="1.0" step="0.05" value="0.7">
+  </div>
+  <div class="prow">
+    <label>Questions in a round — <b id="goalv">20</b><br>
+           <span style="opacity:.7">she gets one prize at the end of each round</span></label>
+    <input type="range" id="goal" min="5" max="40" step="1" value="20">
+  </div>
+  <div class="prow">
+    <label>Today: <b id="statv">0</b> correct · <b id="accv">—</b> first-try</label>
+    <label>Launched: <b id="modev">—</b> · build <b id="buildv">—</b></label>
+    <label>Saving: <b id="savev">—</b></label>
+  </div>
+  <div class="prow">
+    <label>Test run — play without touching her stats, prizes or progress</label>
+    <button class="pbtn" id="practicebtn">Test run: OFF</button>
+  </div>
+  <div class="prow">
+    <label>What she practises</label>
+    <button class="pbtn" data-mode="mixed">Mixed</button>
+    <button class="pbtn" data-mode="letters">Letters</button>
+    <button class="pbtn" data-mode="numbers">Numbers</button>
+  </div>
+  <div class="prow">
+    <label>Language</label>
+    <button class="pbtn" data-setlang="pl">🇵🇱 Polski</button>
+    <button class="pbtn" data-setlang="nb">🇳🇴 Norsk</button>
+  </div>
+  <div>
+    <button class="pbtn" id="statsbtn">What she knows</button>
+    <button class="pbtn" id="pback">Back to the game</button>
+    <button class="pbtn warn" id="preset">Reset today</button>
+  </div>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+var BUILD = 28;   /* visible bottom-right and in the parent panel */
+
+/* ============ content ============================================== */
+/* Uppercase is what she SEES. The lowercase `w` is what the VOICE gets. */
+
+var WORDS = {
+  /* stage 1 rule: 3-4 letters, first letter missing. nothing longer. */
+  pl: [
+    {w:'ser',  e:'🧀'}, {w:'sok',  e:'🧃'}, {w:'sowa', e:'🦉'}, {w:'słoń', e:'🐘'}, {w:'sól', e:'🧂'},
+    {w:'but',  e:'👟'}, {w:'byk',  e:'🐂'}, {w:'brat', e:'👦'},
+    {w:'tort', e:'🎂'}, {w:'tata', e:'👨'}, {w:'tir',  e:'🚛'}
+  ],
+  nb: [
+    {w:'sol',  e:'☀️'}, {w:'sko',  e:'👟'}, {w:'sau',  e:'🐑'}, {w:'sokk', e:'🧦'},
+    {w:'bil',  e:'🚗'}, {w:'ball', e:'⚽'}, {w:'bok',  e:'📕'}, {w:'bad',  e:'🛁'},
+    {w:'tog',  e:'🚆'}, {w:'tann', e:'🦷'}, {w:'tre',  e:'🌳'},
+    {w:'egg',  e:'🥚'}
+  ]
+};
+
+/* a wrong tap speaks a WORD starting with that letter — never the letter itself,
+   because iOS says "big S" for S and stays silent on ł                        */
+var LINK = { pl:' jak ', nb:' som i ' };
+
+/* a word starting with each letter, for "s jak słoń". Polish ń, ó and y
+   cannot begin a word, so those tiles speak the word they sit in instead. */
+var LETTER = {
+  pl:{ a:'auto', b:'but', e:'ekran', i:'igła', k:'kot', l:'lody', o:'oko',
+       r:'ryba', s:'słoń', t:'tort', u:'ucho', w:'woda', 'ł':'łódka',
+       'ń':null, 'ó':null, y:null },
+  nb:{ a:'and', b:'ball', d:'dør', e:'egg', g:'gutt', i:'is', k:'katt',
+       l:'løve', n:'nese', o:'ost', r:'rev', s:'sol', t:'tog', u:'ugle' }
+};
+
+var EXEMPLAR = {
+  /* PL has no 3-4 letter word starting with E that a 4-year-old knows, so E is
+     absent from Polish stage 1 entirely — a letter that is only ever the WRONG
+     answer teaches "never pick E". She meets E in Norwegian, as egg.          */
+  pl: { s:'słoń', b:'but',  t:'tort' },
+  nb: { s:'sol',  b:'ball', t:'tog', e:'egg' }
+};
+
+/* %s is the child's name, typed in on the device and kept in local storage.
+   it is deliberately not in this file, which is published publicly.      */
+var SAY = {
+  pl:{ hi:'Cześć %s', yay:['Brawo!','Super!','Świetnie!'], done:'Brawo %s! Masz nagrodę' },
+  nb:{ hi:'Hei %s',   yay:['Bra!','Flott!','Kjempebra!'],  done:'Bra jobba %s! Du fikk en premie' }
+};
+function nm(str){ return String(str).split('%s').join(S.name || ''); }
+var UI = {
+  pl:{ tap:'dotknij obrazka', again:'Jeszcze raz', title:'Brawo %s!', sub:'Masz nagrodę!',
+       board:'Twoje nagrody', back:'Graj dalej', none:'Jeszcze nie masz nagród',
+       anywhere:'dotknij gdziekolwiek' },
+  nb:{ tap:'trykk på bildet', again:'En gang til', title:'Bra jobba %s!', sub:'Du fikk en premie!',
+       board:'Premiene dine', back:'Spill videre', none:'Ingen premier ennå',
+       anywhere:'trykk hvor som helst' }
+};
+
+var COUNT_EMOJI = ['🍎','🍓','⭐️','🎈','🐞','🍪','🐟','🚗','🌻','🧸'];
+var NUM = {
+  pl:['jeden','dwa','trzy','cztery','pięć','sześć','siedem','osiem','dziewięć','dziesięć'],
+  nb:['en','to','tre','fire','fem','seks','sju','åtte','ni','ti']
+};
+
+var PRIZES_PER_ALBUM = 0;   /* set from PRIZES below */
+var PRIZES = ['⭐️','🌈','🚀','🦋','🐬','🍓','🎠','🌻','🐙','🎨','🦖','🍭','🐝','🌙','🦜','🎁'];
+/* hue-driven so the WHOLE screen follows her colour, not just the buttons.
+   onMain is set per entry because white on yellow is unreadable.           */
+var PALETTE = [
+  {n:'purple', h:262, s:78, l:62, onMain:'#fff'},
+  {n:'pink',   h:330, s:78, l:60, onMain:'#fff'},
+  {n:'yellow', h:40,  s:92, l:52, onMain:'#3a2600'},
+  {n:'red',    h:4,   s:78, l:59, onMain:'#fff'}
+];
+
+function theme(c){
+  var r = document.documentElement.style, H = c.h, S = c.s, L = c.l;
+  function hsl(h,s,l,a){ return 'hsl('+h+' '+s+'% '+l+'%'+(a?' / '+a:'')+')'; }
+  r.setProperty('--main',      hsl(H,S,L));
+  r.setProperty('--main-dark', hsl(H,S,Math.max(24,L-16)));
+  r.setProperty('--main-soft', hsl(H,S,L,'.22'));
+  r.setProperty('--on-main',   c.onMain);
+  r.setProperty('--bg',        hsl(H,88,91));   /* a real pastel, not white */
+  r.setProperty('--bg2',       hsl(H,82,81));
+  r.setProperty('--card',      hsl(H,90,98));   /* flags stay near-white so they pop */
+  r.setProperty('--line',      hsl(H,48,73));   /* rings/dashes must survive the tint */
+  r.setProperty('--ink',       hsl(H,45,15));
+  r.setProperty('--dim',       hsl(H,26,40));
+  r.setProperty('--dead',      hsl(H,26,70));
+}
+
+/* stage 1 only in this build. `upper` is per stage, so a later stage flips it. */
+var STAGE = { id:1, missing:'first', options:2, upper:true,
+               maxCount:5,        /* how big the numbers get  */
+               numberEvery:4 };   /* how often one comes up   */
+
+/* ============ state ================================================= */
+var S = { lang:'pl', rate:0.7, goal:20, correct:0, firstTry:0, asked:0,
+          prizes:[], day:'', word:null, answer:'', locked:false, recent:[], mode:'mixed',
+          name:'', restoredV:0, practice:false, qStart:0, hearPic:0, hearTile:0, recentT:[] };
+
+var KEY  = 'litery.child.v2';
+var LKEY = 'litery.child.log';     /* attempt log  */
+var MKEY = 'litery.child.mastery'; /* per-item memory */
+
+/* Earlier builds stored under a key that carried the child's name, and this
+   file is published. Adopt any older litery.* key with the same suffix rather
+   than naming it — renaming a key without migrating is how her prize
+   collection was lost once already.                                        */
+function readKey(k){
+  try{
+    var v = localStorage.getItem(k);
+    if(v !== null) return v;
+    var suffix = k.slice(k.lastIndexOf('.'));
+    for(var i = 0; i < localStorage.length; i++){
+      var other = localStorage.key(i);
+      if(other && other !== k &&
+         other.indexOf('litery.') === 0 &&
+         other.slice(other.lastIndexOf('.')) === suffix){
+        var val = localStorage.getItem(other);
+        if(val !== null){ localStorage.setItem(k, val); return val; }
+      }
+    }
+    return null;
+  }catch(e){ return null; }
+}
+
+var LOG_CAP = 2000;   /* was deleted by an edit to the block above; its
+                         absence threw inside saveLog and lost every row */
+var LOG = [], MASTERY = {};
+
+function loadLog(){
+  try{ LOG = JSON.parse(readKey(LKEY) || '[]'); }catch(e){ LOG = []; }
+  try{ MASTERY = JSON.parse(readKey(MKEY) || '{}'); }catch(e){ MASTERY = {}; }
+}
+function saveLog(){
+  try{
+    if(LOG.length > LOG_CAP) LOG = LOG.slice(-LOG_CAP);
+    localStorage.setItem(LKEY, JSON.stringify(LOG));
+    localStorage.setItem(MKEY, JSON.stringify(MASTERY));
+    S.saveError = '';
+  }catch(e){
+    /* surfaced in the parent panel rather than swallowed — a silent catch
+       here hid a ReferenceError that lost every logged row for an hour  */
+    S.saveError = String(e && e.message || e);
+    if(window.console) console.error('saveLog failed:', e);
+  }
+}
+
+/* one row per question she finished. short keys because this is on disk.
+   t=when l=language k=L|N s=stage x=target d=distractor o=options
+   w=wrong taps ms=time to answer h=picture taps c=letter-tile taps        */
+function record(target, distractor, wrongTaps, ms){
+  if(S.practice) return;                 /* parent test runs never count */
+  LOG.push({ t:Date.now(), l:S.lang, k:S.word.kind === 'number' ? 'N' : 'L',
+             s:STAGE.id, x:String(target), d:String(distractor), o:STAGE.options,
+             w:wrongTaps, ms:ms, h:S.hearPic, c:S.hearTile });
+
+  /* Leitner-style box per item: first-try correct promotes, a miss resets.
+     box 5 == she owns it. this is what stage advancement will read.       */
+  var id = S.lang + ':' + (S.word.kind === 'number' ? 'N' : 'L') + ':' + target;
+  var m = MASTERY[id] || { n:0, ft:0, box:1, streak:0, last:0, ms:[] };
+  m.n++;
+  if(wrongTaps === 0){ m.ft++; m.streak++; m.box = Math.min(5, m.box + 1); }
+  else { m.streak = 0; m.box = 1; }
+  m.last = Date.now();
+  m.ms.push(ms); if(m.ms.length > 10) m.ms.shift();
+  MASTERY[id] = m;
+  saveLog();
+}
+
+/* push her progress to the laptop so it can be read without copy-paste.
+   fire and forget: if the laptop is asleep or she is away from home WiFi
+   this fails silently and the data stays on the iPad, which is the master. */
+function syncUp(){
+  if(S.practice) return;
+  /* the published copy is https with no endpoint behind it; a cross-origin
+     post to a plain-http LAN address is blocked anyway. skip it quietly.  */
+  if(location.protocol !== 'http:') return;
+  try{
+    fetch('sync', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ at:Date.now(), build:BUILD,
+              settings:{ goal:S.goal, rate:S.rate, lang:S.lang, mode:S.mode,
+                         stage:STAGE.id, maxCount:STAGE.maxCount },
+              prizes:S.prizes, mastery:MASTERY, log:LOG })
+    }).catch(function(){});
+  }catch(e){}
+}
+
+function median(a){
+  if(!a || !a.length) return 0;
+  var b = a.slice().sort(function(x,y){ return x - y; });
+  return b[b.length >> 1];
+}
+
+function today(){ var d=new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+
+function load(){
+  try{
+    var raw = readKey(KEY);
+    if(raw){
+      var o = JSON.parse(raw);
+      S.rate = o.rate || 0.7; S.goal = o.goal || 20; S.lang = o.lang || 'pl';
+      S.mode = o.mode || 'mixed'; S.name = o.name || '';
+      S.restoredV = o.restoredV || (o.restored ? 1 : 0);
+      S.prizes = o.prizes || []; S.day = o.day || '';
+      if(o.day === today()){ S.correct = o.correct||0; S.firstTry = o.firstTry||0; S.asked = o.asked||0; }
+    }
+  }catch(e){}
+  if(S.day !== today()){ S.day = today(); S.correct = 0; S.firstTry = 0; S.asked = 0; }
+  /* renaming sticker->prize bumped the storage key and wiped what she had
+     already earned. give those three back, once. never bump a key again -
+     migrate the old one instead.                                          */
+  /* versioned, because the first restore gave her three and she had earned a
+     fourth by then. top up only if the collection still looks untouched.   */
+  if(S.restoredV < 1){
+    if(!S.prizes.length) S.prizes = ['🍭','🦖','⭐️','🦖'];
+    S.restoredV = 1; save();
+  } else if(S.restoredV < 2){
+    if(S.prizes.length === 3) S.prizes.push('🦖');
+    S.restoredV = 2; save();
+  }
+}
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify({
+      rate:S.rate, goal:S.goal, lang:S.lang, mode:S.mode, name:S.name, restoredV:S.restoredV,
+      prizes:S.prizes, day:S.day,
+      correct:S.correct, firstTry:S.firstTry, asked:S.asked }));
+  }catch(e){}
+}
+
+/* ============ voice ================================================= */
+var VOICE = { pl:null, nb:null }, unlocked = false;
+
+function findVoices(){
+  var all = speechSynthesis.getVoices();
+  if(!all.length) return;
+  all.forEach(function(v){
+    var l = v.lang.toLowerCase().replace('_','-');
+    if(l.indexOf('pl')===0 && !VOICE.pl) VOICE.pl = v;
+    if((l.indexOf('nb')===0||l.indexOf('no')===0||l.indexOf('nn')===0) && !VOICE.nb) VOICE.nb = v;
+  });
+}
+if('speechSynthesis' in window){
+  findVoices();
+  speechSynthesis.onvoiceschanged = findVoices;
+  setTimeout(findVoices,500); setTimeout(findVoices,1500);
+}
+
+/* everything handed to the speaker is lowercase — iOS announces capitals otherwise */
+function say(text, rate){
+  if(!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  var u = new SpeechSynthesisUtterance(String(text).toLowerCase());
+  var v = VOICE[S.lang];
+  if(v){ u.voice = v; u.lang = v.lang; }
+  u.rate = rate || S.rate;
+  speechSynthesis.speak(u);
+}
+
+/* chime built from an oscillator so the app still ships zero audio files */
+var AC = null;
+function tone(freqs){
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state === 'suspended') AC.resume();
+    freqs.forEach(function(f,i){
+      var o = AC.createOscillator(), g = AC.createGain();
+      o.type='sine'; o.frequency.value=f;
+      var t = AC.currentTime + i*0.09;
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.22,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.34);
+      o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+0.36);
+    });
+  }catch(e){}
+}
+function unlock(){
+  if(unlocked) return; unlocked = true;
+  try{ AC = AC || new (window.AudioContext||window.webkitAudioContext)(); AC.resume(); }catch(e){}
+  /* no silent priming utterance: say() cancels the queue, so the blank one
+     was being killed mid-flight and the real greeting arrived late. the
+     greeting itself runs inside the tap, which is all iOS requires.      */
+}
+
+/* ============ helpers =============================================== */
+var $ = function(id){ return document.getElementById(id); };
+function show(id){
+  ['setup','profile','welcome','lang','board','play','reward','parent','stats'].forEach(function(s){
+    $(s).classList.toggle('on', s===id);
+  });
+  /* the page canvas sits behind everything; match it to the screen on top so
+     any gap iOS leaves is invisible instead of a pale strip                */
+  document.documentElement.classList.toggle('dark', id === 'parent' || id === 'stats');
+}
+function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=(Math.random()*(i+1))|0; var t=a[i];a[i]=a[j];a[j]=t; } return a; }
+function disp(ch){ return STAGE.upper ? ch.toUpperCase() : ch.toLowerCase(); }
+
+/* ============ round ================================================= */
+function mkey(kind, t){ return S.lang + ':' + (kind === 'number' ? 'N' : 'L') + ':' + t; }
+
+function targetsFor(kind){
+  if(kind === 'number'){
+    var a = [];
+    for(var i = 1; i <= STAGE.maxCount; i++) a.push(String(i));
+    return a;
+  }
+  return Object.keys(EXEMPLAR[S.lang]);
+}
+
+/* weight = 6 - box, so a letter she keeps missing (box 1) comes up five times
+   as often as one she owns (box 5). this replaces picking a word at random,
+   which made letter frequency a side effect of how many words start with it
+   — Polish had five S-words against three B-words, so S was structurally
+   favoured and she saw it twice as often as either letter she did not know. */
+function pickWeighted(kind, pool){
+  var total = 0, w = pool.map(function(t){
+    var m = MASTERY[mkey(kind, t)];
+    var weight = 6 - (m ? m.box : 1);
+    total += weight;
+    return weight;
+  });
+  var r = Math.random() * total;
+  for(var i = 0; i < pool.length; i++){ r -= w[i]; if(r <= 0) return pool[i]; }
+  return pool[pool.length - 1];
+}
+
+function chooseTarget(kind){
+  var pool = targetsFor(kind);
+
+  /* do not ask the same thing twice in a row if there is anything else */
+  var fresh = pool.filter(function(t){ return S.recentT.indexOf(kind + t) < 0; });
+  if(fresh.length >= 2) pool = fresh;
+
+  /* one in five keeps something she already owns alive, so mastery decays
+     from disuse rather than being assumed permanent                       */
+  if(Math.random() < 0.2){
+    var owned = pool.filter(function(t){
+      var m = MASTERY[mkey(kind, t)];
+      return m && m.box >= 4;
+    });
+    if(owned.length) return owned[(Math.random() * owned.length) | 0];
+  }
+  return pickWeighted(kind, pool);
+}
+
+function nextWord(){
+  var kind = S.mode === 'letters' ? 'letter'
+           : S.mode === 'numbers' ? 'number'
+           : (S.correct % STAGE.numberEvery === STAGE.numberEvery - 1 ? 'number' : 'letter');
+
+  var target = chooseTarget(kind);
+  S.recentT.push(kind + target);
+  if(S.recentT.length > 3) S.recentT.shift();
+
+  if(kind === 'number'){
+    return { kind:'number', n:+target,
+             e:COUNT_EMOJI[(Math.random() * COUNT_EMOJI.length) | 0] };
+  }
+
+  /* the letter is decided first; the word is just a vehicle for it */
+  var cands = WORDS[S.lang].filter(function(x){
+    return x.w.charAt(0).toLowerCase() === target;
+  });
+  if(!cands.length) cands = WORDS[S.lang];
+  var unseen = cands.filter(function(x){ return S.recent.indexOf(x.w) < 0; });
+  if(unseen.length) cands = unseen;
+
+  var pick = cands[(Math.random() * cands.length) | 0];
+  S.recent.push(pick.w);
+  if(S.recent.length > 4) S.recent.shift();
+  return { kind:'letter', w:pick.w, e:pick.e };
+}
+
+/* what the picture says when tapped */
+function sayQuestion(){
+  if(S.word.kind === 'number') say(NUM[S.lang][S.word.n - 1]);
+  else say(S.word.w);
+}
+
+/* one path for every letter sound: the letter INSIDE a word, so the link is
+   explicit. never a bare letter - iOS reads that as "big S". spoken slower
+   than a whole word, because this is the teaching moment.                 */
+/* letters stay slower than whole words, but as a FRACTION of the slider,
+   not a constant — 0.62 hard-coded meant the slider did nothing here.   */
+function letterRate(){ return Math.max(0.3, S.rate * 0.8); }
+
+function sayLetter(ch){
+  var c = String(ch).toLowerCase();
+  var ex = LETTER[S.lang] && LETTER[S.lang][c];
+  if(ex) say(c + LINK[S.lang] + ex, letterRate());
+  else if(S.word.kind === 'letter') say(S.word.w, letterRate());   /* ń, ó, y */
+}
+
+function sayWrong(val){
+  if(S.word.kind === 'number') say(NUM[S.lang][(+val) - 1], letterRate());
+  else setTimeout(function(){ sayLetter(val); }, 260);     /* let the shake land first */
+}
+
+function render(){
+  var wd = $('word'), opts = $('opts'), pic = $('pic'), choices;
+  wd.textContent = ''; opts.textContent = '';
+  $('hint').textContent = UI[S.lang].tap;
+
+  if(S.word.kind === 'number'){
+    S.answer = String(S.word.n);
+    /* the picture IS the quantity — counting, not a digit to copy */
+    pic.textContent = '';
+    pic.className = 'pic counting';
+    var grid = document.createElement('div');
+    grid.className = 'cnt' + (S.word.n > 6 ? ' many' : '');
+    for(var k = 0; k < S.word.n; k++){
+      var it = document.createElement('span');
+      it.textContent = S.word.e;
+      grid.appendChild(it);
+    }
+    pic.appendChild(grid);
+
+    var cell = document.createElement('span');
+    cell.className = 'cell gap'; cell.id = 'gapbox';
+    wd.appendChild(cell);
+
+    var wrongN;
+    do { wrongN = 1 + ((Math.random() * STAGE.maxCount) | 0); } while(wrongN === S.word.n);
+    choices = [S.answer, String(wrongN)];
+
+  } else {
+    var word = S.word.w;
+    S.answer = word.charAt(0).toLowerCase();
+    pic.className = 'pic';
+    pic.textContent = S.word.e;
+
+    var shown = STAGE.upper ? word.toUpperCase() : word.toLowerCase();
+    for(var i = 0; i < shown.length; i++){
+      var c = document.createElement('span');
+      c.className = 'cell';
+      if(i === 0){ c.classList.add('gap'); c.id = 'gapbox'; }
+      else {
+        c.textContent = shown.charAt(i);
+        c.classList.add('tappable');
+        (function(ch){ c.addEventListener('click', function(){ unlock(); S.hearTile++; sayLetter(ch); }); })(shown.charAt(i));
+      }
+      wd.appendChild(c);
+    }
+
+    var known = Object.keys(EXEMPLAR[S.lang]).filter(function(l){ return l !== S.answer; });
+    choices = [S.answer, known[(Math.random() * known.length) | 0]];
+  }
+
+  shuffle(choices).forEach(function(val){
+    var b = document.createElement('button');
+    b.className = 'opt';
+    b.textContent = S.word.kind === 'number' ? val : disp(val);
+    b.addEventListener('click', function(){ answer(val, b); });
+    opts.appendChild(b);
+  });
+
+  S.locked = false;
+  S.missed = false;
+  S.wrongTaps = 0;
+  S.qStart = Date.now();
+  S.hearPic = 0;
+  S.hearTile = 0;
+  S.distractor = choices.filter(function(v){ return v !== S.answer; })[0] || '';
+  drawStars();
+  updateTrophy();
+  $('practiceband').style.display = S.practice ? 'block' : 'none';
+}
+
+function answer(val, btn){
+  if(S.locked) return;
+  unlock();
+
+  if(val !== S.answer){
+    S.missed = true;
+    S.wrongTaps = (S.wrongTaps || 0) + 1;
+    btn.classList.add('shake');
+    setTimeout(function(){ btn.classList.remove('shake'); btn.classList.add('dead'); }, 400);
+    sayWrong(val);
+    return;
+  }
+
+  S.locked = true;
+  btn.classList.add('good');
+  var g = $('gapbox');
+  g.textContent = S.word.kind === 'number' ? val : disp(val);
+  g.classList.add('in','pop');
+  record(S.answer, S.distractor, S.wrongTaps || 0, Date.now() - S.qStart);
+  if(!S.practice){
+    S.correct++; S.asked++;
+    if(!S.missed) S.firstTry++;
+  }
+  tone([660,880]);
+  setTimeout(sayQuestion, 260);
+  drawStars();
+  updateTrophy();
+  save();
+
+  setTimeout(function(){
+    if(S.correct >= S.goal) finish();
+    else { S.word = nextWord(); render(); sayQuestion(); }
+  }, 1650);
+}
+
+function updateTrophy(){ $('tcount').textContent = S.prizes.length; }
+
+var boardFrom = 'play';
+
+function leaveBoard(){
+  if(boardFrom === 'reward'){ show('reward'); return; }
+  /* the round may have ended while the board was open, or she came here from
+     a question already answered — either way 'play' needs a live question  */
+  if(S.locked || !S.word){ S.word = nextWord(); render(); sayQuestion(); }
+  show('play');
+}
+
+function openBoard(){
+  boardFrom = $('reward').classList.contains('on') ? 'reward' : 'play';
+  $('bhint').textContent  = UI[S.lang].anywhere;
+  var g = $('bgrid');
+  g.textContent = '';
+  /* show the album she is filling now, not every prize she has ever had */
+  var album   = Math.floor(S.prizes.length / PRIZES.length);
+  var inAlbum = S.prizes.slice(album * PRIZES.length);
+
+  inAlbum.forEach(function(x){
+    var e = document.createElement('span');
+    e.textContent = x;
+    e.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      $('bigprizeface').textContent = x;
+      $('bigprize').classList.add('on');
+    });
+    g.appendChild(e);
+  });
+  for(var i = inAlbum.length; i < PRIZES.length; i++){
+    var d = document.createElement('div'); d.className = 'slot'; g.appendChild(d);
+  }
+  $('btitle').textContent = UI[S.lang].board +
+      (album ? '  ' + (album + 1) : '') +
+      '   ' + inAlbum.length + '/' + PRIZES.length;
+  show('board');
+}
+
+function drawStars(){
+  var host = $('stars');
+  host.textContent = '';
+  /* the parent panel goes up to 40 — at a fixed 18px those wrap onto a second
+     row and the track stops reading as one journey. size follows the goal.   */
+  var sz = Math.max(8, Math.min(18, ((520 / S.goal) | 0) - 4));
+  for(var i=0;i<S.goal;i++){
+    var d = document.createElement('div');
+    d.className = 'st' + (i < S.correct ? ' f' : '');
+    d.style.width = d.style.height = sz + 'px';
+    d.style.borderWidth = (sz < 14 ? 2 : 3) + 'px';
+    host.appendChild(d);
+  }
+}
+
+/* she collects each prize once per album; when an album is full a new one
+   starts, so the board always has empty slots and never just repeats.     */
+function awardPrize(){
+  var album = Math.floor(S.prizes.length / PRIZES.length);
+  var inAlbum = S.prizes.slice(album * PRIZES.length);
+  var pool = PRIZES.filter(function(p){ return inAlbum.indexOf(p) < 0; });
+  if(!pool.length) pool = PRIZES;
+  return pool[(Math.random()*pool.length)|0];
+}
+
+function finish(){
+  var st = awardPrize();
+  if(!S.practice){
+    S.prizes.push(st); save();
+    LOG.push({ t:Date.now(), l:S.lang, k:'P', x:st });   /* dated, so history can count it */
+    saveLog();
+    syncUp();                                            /* one push per round */
+  }
+  S.correct = 0;
+  $('prize').textContent = st;
+  $('rtitle').textContent = nm(UI[S.lang].title);
+  $('rsub').textContent   = UI[S.lang].sub;
+  $('again').textContent  = UI[S.lang].again;
+  $('swaplang').textContent = S.lang === 'pl' ? '🇳🇴' : '🇵🇱';
+  var book = $('book'); book.textContent = '';
+  S.prizes.slice(-16).forEach(function(s){
+    var e = document.createElement('span'); e.textContent = s; book.appendChild(e);
+  });
+  tone([523,659,784,1047]);
+  setTimeout(function(){ say(nm(SAY[S.lang].done)); }, 350);
+  show('reward');
+}
+
+/* ============ wiring ================================================ */
+load();
+loadLog();
+setTimeout(syncUp, 1500);   /* whatever last session left behind */
+$('build').textContent = 'b' + BUILD;
+
+if('serviceWorker' in navigator && location.protocol === 'https:'){
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+}
+
+if(!S.name){
+  show('setup');
+  $('nameinput').value = '';
+} else {
+  $('pname').textContent = S.name;
+}
+$('namego').addEventListener('click', function(){
+  var v = ($('nameinput').value || '').trim().slice(0,16);
+  if(!v) return;
+  S.name = v; save();
+  $('pname').textContent = S.name;
+  show('profile');
+});
+$('nameinput').addEventListener('keydown', function(e){
+  if(e.key === 'Enter') $('namego').click();
+});
+var forced = (location.search.match(/[?&]c=(\d)/) || [])[1];
+theme(PALETTE[forced !== undefined ? (+forced % PALETTE.length) : (Math.random()*PALETTE.length)|0]);
+
+var wTimer = null, welcomeLang = null;
+function welcome(){
+  welcomeLang = S.lang;
+  $('wtitle').textContent = nm(SAY[S.lang].hi) + '!';
+  show('welcome');
+  say(nm(SAY[S.lang].hi));
+  clearTimeout(wTimer);
+  wTimer = setTimeout(toLang, 2200);
+}
+function toLang(){ clearTimeout(wTimer); show('lang'); }
+
+$('pick-profile').addEventListener('click', function(){ unlock(); welcome(); });
+$('welcome').addEventListener('click', toLang);
+
+Array.prototype.forEach.call(document.querySelectorAll('.flag'), function(f){
+  f.addEventListener('click', function(){
+    S.lang = f.getAttribute('data-lang');
+    save();
+    S.word = nextWord();
+    render();
+    show('play');
+    sayQuestion();     /* one greeting per launch is enough */
+  });
+});
+
+$('pic').addEventListener('click', function(){ unlock(); S.hearPic++; sayQuestion(); });
+
+$('again').addEventListener('click', function(){
+  S.word = nextWord(); render(); show('play');
+});
+
+/* gear needs a deliberate long press so she cannot fall into settings */
+var press = null;
+$('gear').addEventListener('touchstart', function(){ press = setTimeout(openParent, 1200); });
+$('gear').addEventListener('touchend',   function(){ clearTimeout(press); });
+$('gear').addEventListener('mousedown',  function(){ press = setTimeout(openParent, 1200); });
+$('gear').addEventListener('mouseup',    function(){ clearTimeout(press); });
+
+function switchTo(lang){
+  S.lang = lang; save();
+  S.recent = [];
+  S.word = nextWord(); render(); show('play');
+  say(nm(SAY[S.lang].hi));
+  setTimeout(sayQuestion, 1500);
+}
+
+$('swaplang').addEventListener('click', function(){ switchTo(S.lang === 'pl' ? 'nb' : 'pl'); });
+
+function paintChoices(){
+  Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-mode') === S.mode);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-setlang]'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-setlang') === S.lang);
+  });
+}
+
+function paintPractice(){
+  $('practicebtn').textContent = 'Test run: ' + (S.practice ? 'ON' : 'OFF');
+  $('practicebtn').className = 'pbtn' + (S.practice ? ' warn' : '');
+  $('practiceband').style.display = S.practice ? 'block' : 'none';
+}
+$('practicebtn').addEventListener('click', function(){
+  S.practice = !S.practice;
+  paintPractice();
+});
+
+Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function(b){
+  b.addEventListener('click', function(){
+    S.mode = b.getAttribute('data-mode'); save(); paintChoices();
+    S.word = nextWord(); render(); show('play');
+  });
+});
+Array.prototype.forEach.call(document.querySelectorAll('[data-setlang]'), function(b){
+  b.addEventListener('click', function(){ switchTo(b.getAttribute('data-setlang')); });
+});
+
+var BOXCOL = ['#ef4444','#ef4444','#f97316','#eab308','#84cc16','#22c55e'];
+
+function dayKey(ts){
+  var d = new Date(ts);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+                         + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function el(tag, cls, txt){
+  var e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(txt !== undefined) e.textContent = txt;
+  return e;
+}
+
+function openStats(){
+  var host = $('sbody');
+  host.textContent = '';
+  $('dump').style.display = 'none';
+
+  var ids = Object.keys(MASTERY);
+  if(!ids.length && !LOG.length){
+    host.appendChild(el('div','empty','Nothing recorded yet. Play a round without Test run switched on.'));
+    show('stats');
+    return;
+  }
+
+  /* ---- per item, grouped language + kind ---- */
+  [['pl','L','Letters · Polish'],['pl','N','Numbers · Polish'],
+   ['nb','L','Letters · Norwegian'],['nb','N','Numbers · Norwegian']].forEach(function(g){
+    var rows = ids.filter(function(id){ return id.indexOf(g[0]+':'+g[1]+':') === 0; })
+                  .sort(function(a,b){ return MASTERY[b].n - MASTERY[a].n; });
+    if(!rows.length) return;
+
+    var known = rows.filter(function(id){ return MASTERY[id].box >= 4; }).length;
+    host.appendChild(el('div','shead', g[2] + ' — ' + known + '/' + rows.length + ' known'));
+
+    rows.forEach(function(id){
+      var m = MASTERY[id], target = id.split(':')[2];
+      var pct = m.n ? Math.round(100 * m.ft / m.n) : 0;
+      var row = el('div','item');
+      var g1 = el('div','g', g[1] === 'L' ? target.toUpperCase() : target);
+      g1.style.background = BOXCOL[m.box];
+      row.appendChild(g1);
+      var bar = el('div','bar'), fill = el('i');
+      fill.style.width = (m.box * 20) + '%';
+      fill.style.background = BOXCOL[m.box];
+      bar.appendChild(fill); row.appendChild(bar);
+      row.appendChild(el('div','nums', m.n + ' seen · ' + pct + '% · ' +
+                                       (median(m.ms)/1000).toFixed(1) + 's'));
+      host.appendChild(row);
+    });
+  });
+
+  /* ---- last 14 days ---- */
+  var byDay = {};
+  LOG.forEach(function(r){
+    var d = dayKey(r.t);
+    byDay[d] = byDay[d] || { q:0, ft:0, p:0 };
+    if(r.k === 'P') byDay[d].p++;
+    else { byDay[d].q++; if(!r.w) byDay[d].ft++; }
+  });
+  var days = Object.keys(byDay).sort().reverse().slice(0,14);
+  host.appendChild(el('div','shead','Last ' + days.length + ' day' + (days.length===1?'':'s')));
+  if(!days.length){
+    host.appendChild(el('div','empty','No days recorded yet.'));
+  } else {
+    var tab = el('table','dtab');
+    days.forEach(function(d){
+      var v = byDay[d], tr = el('tr');
+      tr.appendChild(el('td', null, d.slice(5)));
+      tr.appendChild(el('td','r', v.q + ' q'));
+      tr.appendChild(el('td','r', (v.q ? Math.round(100*v.ft/v.q) : 0) + '% first try'));
+      tr.appendChild(el('td','r', v.p + ' prize' + (v.p===1?'':'s')));
+      tab.appendChild(tr);
+    });
+    host.appendChild(tab);
+  }
+
+  /* ---- progress toward the next stage: 80% of targets at box 4+,
+          on two separate days (the rule you chose) ---- */
+  host.appendChild(el('div','shead','Stage ' + STAGE.id + ' — clears at 80% on two days'));
+  [['pl','Polish'],['nb','Norwegian']].forEach(function(L){
+    var targets = Object.keys(EXEMPLAR[L[0]]);
+    var ready = targets.filter(function(t){
+      var m = MASTERY[L[0]+':L:'+t];
+      if(!m || m.box < 4) return false;
+      var ds = {};
+      LOG.forEach(function(r){ if(r.l===L[0] && r.k==='L' && r.x===t && !r.w) ds[dayKey(r.t)]=1; });
+      return Object.keys(ds).length >= 2;
+    }).length;
+    var pc = Math.round(100 * ready / targets.length);
+    var row = el('div','item');
+    row.appendChild(el('div','nums', L[1]));
+    var bar = el('div','bar'), fill = el('i');
+    fill.style.width = Math.min(100, pc) + '%';
+    fill.style.background = pc >= 80 ? '#22c55e' : '#7c5cff';
+    bar.appendChild(fill); row.appendChild(bar);
+    row.appendChild(el('div','nums', ready + '/' + targets.length + ' · ' + pc + '%'));
+    host.appendChild(row);
+  });
+
+  show('stats');
+}
+
+$('statsbtn') && $('statsbtn').addEventListener('click', openStats);
+$('sback').addEventListener('click', function(){ show('play'); });
+$('copydata').addEventListener('click', function(){
+  var payload = JSON.stringify({ build:BUILD, settings:{ goal:S.goal, rate:S.rate,
+                    lang:S.lang, mode:S.mode }, prizes:S.prizes,
+                    mastery:MASTERY, log:LOG });
+  var ta = $('dump');
+  ta.style.display = 'block';
+  ta.value = payload;
+  ta.select();
+  var done = false;
+  try { done = document.execCommand('copy'); } catch(e){}
+  /* clipboard API needs HTTPS, execCommand does not — and if both fail the
+     textarea is on screen so it can be long-pressed and copied by hand   */
+  $('copydata').textContent = done ? 'Copied (' + LOG.length + ' rows)'
+                                   : 'Select the box below and copy';
+});
+
+function openParent(){
+  $('ratev').textContent = S.rate.toFixed(2);
+  $('goalv').textContent = S.goal;
+  $('rate').value = S.rate;
+  $('goal').value = S.goal;
+  $('statv').textContent = S.asked;
+  $('accv').textContent  = S.asked ? Math.round(100*S.firstTry/S.asked)+'%' : '—';
+  $('buildv').textContent = BUILD;
+  $('savev').textContent = S.saveError ? ('FAILING — ' + S.saveError)
+                                       : (LOG.length + ' rows recorded');
+  paintPractice();
+  paintChoices();
+  $('swaplang').textContent = S.lang === 'pl' ? '🇳🇴' : '🇵🇱';
+  $('modev').textContent = (window.navigator.standalone ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches))
+      ? 'full screen, from the home icon' : 'inside Safari (address bar visible)';
+  show('parent');
+}
+$('rate').addEventListener('input', function(e){
+  S.rate = parseFloat(e.target.value);
+  $('ratev').textContent = S.rate.toFixed(2); save();
+});
+$('goal').addEventListener('input', function(e){
+  S.goal = parseInt(e.target.value,10);
+  $('goalv').textContent = S.goal; save(); drawStars();
+});
+var dev = (location.search.match(/dev=([a-z]+)/) || [])[1];
+if(dev === 'play'){ S.word = nextWord(); render(); show('play'); }
+else if(dev === 'welcome'){ $('wtitle').textContent = nm(SAY[S.lang].hi) + '!'; show('welcome'); }
+else if(dev === 'probe'){ window.__probe = { chooseTarget:chooseTarget, nextWord:nextWord }; }
+else if(dev === 'lang'){ show('lang'); }
+else if(dev === 'parent'){ S.word = nextWord(); render(); openParent(); }
+else if(dev === 'stats'){
+  /* in-memory only, never saved — lets me look at a populated dashboard */
+  var day = 86400000, now = Date.now();
+  [['s',5,28,.93],['t',4,22,.82],['b',2,17,.53],['e',3,9,.67]].forEach(function(q){
+    MASTERY['pl:L:'+q[0]] = { n:q[2], ft:Math.round(q[2]*q[3]), box:q[1], streak:2,
+                              last:now, ms:[2100,2600,3100,2400,2900] };
+  });
+  [['3',5,14,.9],['7',2,8,.5]].forEach(function(q){
+    MASTERY['pl:N:'+q[0]] = { n:q[2], ft:Math.round(q[2]*q[3]), box:q[1], streak:1,
+                              last:now, ms:[1900,2200,2500] };
+  });
+  MASTERY['nb:L:s'] = { n:11, ft:8, box:4, streak:3, last:now, ms:[2800,3100,2600] };
+  for(var d = 0; d < 6; d++){
+    for(var i = 0; i < 12 + d; i++){
+      LOG.push({ t:now - d*day, l:'pl', k:(i%3?'L':'N'), s:1,
+                 x:'stbe'[i%4], d:'b', o:2, w:(i%3===0?1:0), ms:2000+i*80, h:i%2, c:0 });
+    }
+    LOG.push({ t:now - d*day, l:'pl', k:'P', x:'⭐️' });
+  }
+  LOG.push({ t:now - day, l:'pl', k:'L', s:1, x:'s', d:'b', o:2, w:0, ms:2200, h:0, c:0 });
+  openStats();
+}
+else if(dev === 'board'){ S.prizes = ['⭐️','🚀','🦋','🍓','🐝','🌈','🎠']; S.word = nextWord(); render(); openBoard(); }
+else if(dev === 'reward'){
+  S.prizes = ['⭐️','🚀','🦋','🍓'];
+  S.word = nextWord(); render();
+  finish();                     /* the real path, so a crash here shows up */
+}
+
+$('navback').addEventListener('click', function(){ speechSynthesis.cancel(); show('lang'); });
+$('trophy').addEventListener('click', openBoard);
+$('toboard').addEventListener('click', openBoard);
+$('book').addEventListener('click', openBoard);
+/* two ways out: the arrow, and tapping anywhere */
+$('backx').addEventListener('click', function(e){ e.stopPropagation(); leaveBoard(); });
+$('bigprize').addEventListener('click', function(ev){
+  ev.stopPropagation();
+  $('bigprize').classList.remove('on');
+});
+$('board').addEventListener('click', function(){
+  if($('bigprize').classList.contains('on')) return;   /* the overlay eats it */
+  leaveBoard();
+});
+
+$('pback').addEventListener('click', function(){ show('play'); });
+$('preset').addEventListener('click', function(){
+  S.correct = 0; S.asked = 0; S.firstTry = 0; save(); drawStars(); show('play');
+});
+
+})();
+</script>
+</body>
+</html>
