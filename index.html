@@ -44,6 +44,10 @@
              background:var(--card);color:var(--ink);box-shadow:0 6px 0 var(--line);
              margin-bottom:22px;}
   .setuphint{font-size:14px;color:var(--dim);margin-top:18px;max-width:320px;}
+  .synckeyin{font-size:15px !important;width:100% !important;padding:12px 14px !important;
+             margin-bottom:0 !important;box-shadow:none !important;
+             background:#0b0d12 !important;color:#cfd5e1 !important;
+             font-family:ui-monospace,monospace !important;}
 
   /* ---------- welcome ---------- */
   .wav{width:min(46vw,200px);height:min(46vw,200px);border-radius:50%;background:var(--main);
@@ -320,6 +324,16 @@
     <label>Saving: <b id="savev">—</b></label>
   </div>
   <div class="prow">
+    <label>Sync key — paste the same one on every device she uses</label>
+    <input id="synckey" class="nameinput synckeyin" type="text" autocomplete="off"
+           autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="not set">
+    <div style="margin-top:8px">
+      <button class="pbtn" id="syncsave">Save key</button>
+      <button class="pbtn" id="syncnow">Sync now</button>
+    </div>
+    <label style="margin-top:8px">Status: <b id="syncstat">—</b></label>
+  </div>
+  <div class="prow">
     <label>Test run — play without touching her stats, prizes or progress</label>
     <button class="pbtn" id="practicebtn">Test run: OFF</button>
   </div>
@@ -345,7 +359,10 @@
 (function () {
 'use strict';
 
-var BUILD = 35;   /* visible bottom-right and in the parent panel */
+var BUILD = 36;
+/* The sync service. The URL is public; the key the parent pastes in is the
+   only credential, because there is no login for a four-year-old.        */
+var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
 
 /* ============ content ============================================== */
 /* Uppercase is what she SEES. The lowercase `w` is what the VOICE gets. */
@@ -480,7 +497,7 @@ var STAGE = { id:1, missing:'first', options:2, upper:true,
 /* ============ state ================================================= */
 var S = { lang:'pl', rate:0.7, goal:20, correct:0, firstTry:0, asked:0,
           prizes:[], day:'', word:null, answer:'', locked:false, recent:[], mode:'mixed',
-          name:'', roundBy:{}, restoredV:0, practice:false, qStart:0, hearPic:0, hearTile:0, recentT:[] };
+          name:'', roundBy:{}, syncKey:'', syncMsg:'', restoredV:0, practice:false, qStart:0, hearPic:0, hearTile:0, recentT:[] };
 
 var KEY  = 'litery.child.v2';
 var LKEY = 'litery.child.log';     /* attempt log  */
@@ -555,6 +572,30 @@ function record(target, distractor, wrongTaps, ms){
 /* push her progress to the laptop so it can be read without copy-paste.
    fire and forget: if the laptop is asleep or she is away from home WiFi
    this fails silently and the data stays on the iPad, which is the master. */
+/* Post everything this device has, take back what the server merged. The
+   server replays both histories, so neither device is authoritative and one
+   opened after a long gap cannot erase the other.                        */
+function cloudSync(){
+  if(!S.syncKey || S.practice) return;
+  S.syncMsg = 'syncing…';
+  fetch(SYNC_URL + '/s/' + encodeURIComponent(S.syncKey), {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ prizes:S.prizes, log:LOG, mastery:MASTERY, name:S.name,
+      settings:{ goal:S.goal, rate:S.rate, lang:S.lang, mode:S.mode } })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d || !Array.isArray(d.log)) throw new Error((d && d.error) || 'bad reply');
+    LOG = d.log;
+    MASTERY = (d.mastery && Object.keys(d.mastery).length) ? d.mastery : rebuildMastery(LOG);
+    if(Array.isArray(d.prizes)) S.prizes = d.prizes;
+    saveLog(); save();
+    S.syncMsg = LOG.length + ' rows in sync' + (d.added ? ' (+' + d.added + ')' : '');
+  })
+  .catch(function(e){ S.syncMsg = 'sync failed: ' + (e.message || e); });
+}
+
 function syncUp(){
   if(S.practice) return;
   /* the published copy is https with no endpoint behind it; a cross-origin
@@ -587,7 +628,7 @@ function load(){
       var o = JSON.parse(raw);
       S.rate = o.rate || 0.7; S.goal = o.goal || 20; S.lang = o.lang || 'pl';
       S.mode = o.mode || 'mixed'; S.name = o.name || '';
-      S.roundBy = o.roundBy || {};
+      S.roundBy = o.roundBy || {}; S.syncKey = o.syncKey || '';
       S.restoredV = o.restoredV || (o.restored ? 1 : 0);
       S.prizes = o.prizes || []; S.day = o.day || '';
       if(o.day === today()){ S.correct = o.correct||0; S.firstTry = o.firstTry||0; S.asked = o.asked||0; }
@@ -605,7 +646,7 @@ function save(){
   try{
     localStorage.setItem(KEY, JSON.stringify({
       rate:S.rate, goal:S.goal, lang:S.lang, mode:S.mode, name:S.name,
-      roundBy:S.roundBy, restoredV:S.restoredV,
+      roundBy:S.roundBy, syncKey:S.syncKey, restoredV:S.restoredV,
       prizes:S.prizes, day:S.day,
       correct:S.correct, firstTry:S.firstTry, asked:S.asked }));
   }catch(e){}
@@ -1018,7 +1059,8 @@ function finish(){
     save();
     LOG.push({ t:Date.now(), l:S.lang, k:'P', x:st });   /* dated, so history can count it */
     saveLog();
-    syncUp();                                            /* one push per round */
+    syncUp();       /* the laptop, when served from it */
+    cloudSync();    /* and the cloud, always */
   }
   S.correct = 0;
   $('prize').textContent = st;
@@ -1039,7 +1081,8 @@ function finish(){
 /* ============ wiring ================================================ */
 load();
 loadLog();
-setTimeout(syncUp, 1500);   /* whatever last session left behind */
+setTimeout(syncUp, 1500);   /* the laptop, when served from it */
+setTimeout(cloudSync, 1800);
 $('build').textContent = 'b' + BUILD;
 
 if('serviceWorker' in navigator && location.protocol === 'https:'){
@@ -1136,6 +1179,21 @@ function paintPractice(){
   $('practicebtn').className = 'pbtn' + (S.practice ? ' warn' : '');
   $('practiceband').style.display = S.practice ? 'block' : 'none';
 }
+function paintSync(){ $('syncstat').textContent = S.syncMsg || (S.syncKey ? 'key set' : 'not set'); }
+
+$('syncsave').addEventListener('click', function(){
+  S.syncKey = ($('synckey').value || '').trim();
+  save();
+  cloudSync();
+  $('syncstat').textContent = S.syncKey ? 'key saved, syncing…' : 'key cleared';
+  setTimeout(paintSync, 2500);
+});
+$('syncnow').addEventListener('click', function(){
+  cloudSync();
+  $('syncstat').textContent = 'syncing…';
+  setTimeout(paintSync, 2500);
+});
+
 $('practicebtn').addEventListener('click', function(){
   S.practice = !S.practice;
   paintPractice();
@@ -1406,6 +1464,8 @@ function openParent(){
   $('buildv').textContent = BUILD;
   $('savev').textContent = S.saveError ? ('FAILING — ' + S.saveError)
                                        : (LOG.length + ' rows recorded');
+  $('synckey').value = S.syncKey || '';
+  paintSync();
   paintPractice();
   paintChoices();
   $('swaplang').textContent = S.lang === 'pl' ? '🇳🇴' : '🇵🇱';

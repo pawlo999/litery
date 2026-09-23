@@ -1,0 +1,7 @@
+name = "litery-sync"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+
+[[kv_namespaces]]
+binding = "LITERY"
+id = "29217cc63db4433699cf70d2f543ebc3"

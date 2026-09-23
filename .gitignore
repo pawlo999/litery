@@ -3,3 +3,7 @@ data/
 
 # test dependencies
 test/node_modules/
+sync/node_modules/
+sync/.wrangler/
+sync/key.txt
+sync/.env

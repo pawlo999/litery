@@ -1016,6 +1016,70 @@ console.log('\n[18] THE TWO BUGS FROM TODAY');
   a.w.close();
 }
 
+console.log('\n[19] CLOUD SYNC');
+{
+  // a fake server that behaves like the Worker: merge and hand back
+  let serverLog = [], calls = 0, lastBody = null;
+  const fakeFetch = (url, opts) => {
+    calls++;
+    lastBody = JSON.parse(opts.body);
+    const seen = new Set(), merged = [];
+    for (const r of [...serverLog, ...(lastBody.log || [])]) {
+      const k = r.t + '|' + r.k + '|' + (r.x === undefined ? '' : r.x);
+      if (seen.has(k)) continue; seen.add(k); merged.push(r);
+    }
+    merged.sort((a, b) => a.t - b.t);
+    const added = merged.length - serverLog.length;
+    serverLog = merged;
+    return Promise.resolve({ json: () => Promise.resolve({
+      log: merged, mastery: {}, prizes: ['⭐️','🍭'], added }) });
+  };
+
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, syncKey:'k'.repeat(32), prizes:[],
+                   __log:[{ t:1000, l:'pl', k:'L', s:1, x:'s', d:'b', o:2, w:0, ms:2000, h:0, c:0 }] });
+  a.w.fetch = fakeFetch;
+  await sleep(200);
+  a.click('#pick-profile'); await sleep(2500);
+
+  a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown'));
+  await sleep(1400);
+  ok(a.d.getElementById('synckey').value === 'k'.repeat(32),
+     'the saved key shows in the panel', a.d.getElementById('synckey').value.slice(0,8));
+
+  calls = 0;
+  a.click('#syncnow'); await sleep(200);
+  ok(calls === 1, 'Sync now posts once', String(calls));
+  ok(lastBody && Array.isArray(lastBody.log) && lastBody.log.length === 1,
+     'and sends this device\'s whole history', JSON.stringify(lastBody && lastBody.log && lastBody.log.length));
+  ok(JSON.parse(a.w.localStorage.getItem('litery.child.v2')).prizes.length === 2,
+     'the merged reply is adopted locally',
+     JSON.stringify(JSON.parse(a.w.localStorage.getItem('litery.child.v2')).prizes));
+  console.log('  status line: ' + a.d.getElementById('syncstat').textContent);
+
+  // a second device with its own row must converge, not overwrite
+  const b = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, syncKey:'k'.repeat(32), prizes:[],
+                   __log:[{ t:2000, l:'pl', k:'L', s:1, x:'m', d:'k', o:2, w:0, ms:1800, h:0, c:0 }] });
+  b.w.fetch = fakeFetch;
+  await sleep(200);
+  b.click('#pick-profile'); await sleep(2500);
+  b.d.getElementById('gear').dispatchEvent(new b.w.MouseEvent('mousedown'));
+  await sleep(1400);
+  b.click('#syncnow'); await sleep(200);
+  const bLog = JSON.parse(b.w.localStorage.getItem('litery.child.log'));
+  console.log('  second device after sync: ' + bLog.length + ' rows');
+  ok(bLog.length === 2, 'THE SECOND DEVICE ENDS UP WITH BOTH HISTORIES', String(bLog.length));
+  b.w.close();
+
+  // and a device in test-run mode must never touch the server
+  calls = 0;
+  a.click('#practicebtn'); await sleep(40);
+  a.click('#syncnow'); await sleep(150);
+  ok(calls === 0, 'a parent test run never syncs', String(calls));
+  a.w.close();
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('HARNESS ERROR', e); process.exit(2); });
