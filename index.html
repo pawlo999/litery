@@ -367,7 +367,7 @@
 (function () {
 'use strict';
 
-var BUILD = 38;
+var BUILD = 39;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -1024,21 +1024,29 @@ function drawStars(){
 
 /* she collects each prize once per album; when an album is full a new one
    starts, so the board always has empty slots and never just repeats.     */
-/* Albums are bounded by UNIQUE prizes, not list length. Her collection holds a
-   duplicate left by an old repair, so counting by length meant the album could
-   never complete and one prize was never offered again.                    */
+/* An album ends when it is FULL, not when a repeat turns up. Two devices
+   awarding independently before they shared state produced four duplicates,
+   and resetting on each of those made the album number and the count depend
+   on where the repeats happened to fall — arithmetic nobody could follow.
+   Legacy repeats are now skipped; the stored list stays a faithful record of
+   what was actually awarded.                                              */
 function albumOf(prizes){
   var out = [], seen = {};
   prizes.forEach(function(p){
-    if(seen[p]){ out = []; seen = {}; }   /* a repeat opens the next album */
+    if(out.length >= PRIZES.length){ out = []; seen = {}; }   /* full: next one */
+    if(seen[p]) return;                                       /* legacy repeat */
     seen[p] = 1; out.push(p);
   });
   return out;
 }
 
 function albumIndex(prizes){
-  var n = 0, seen = {};
-  prizes.forEach(function(p){ if(seen[p]){ n++; seen = {}; } seen[p] = 1; });
+  var n = 0, count = 0, seen = {};
+  prizes.forEach(function(p){
+    if(count >= PRIZES.length){ n++; count = 0; seen = {}; }
+    if(seen[p]) return;
+    seen[p] = 1; count++;
+  });
   return n;
 }
 
@@ -1482,6 +1490,7 @@ function leaveParent(){
 
 function openParent(){
   panelFrom = currentScreen() || 'play';
+  cloudSync();   /* the panel is where you read the numbers, so refresh them */
   $('ratev').textContent = S.rate.toFixed(2);
   $('goalv').textContent = S.goal;
   $('rate').value = S.rate;

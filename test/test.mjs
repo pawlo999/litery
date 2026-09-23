@@ -1014,8 +1014,10 @@ console.log('\n[18] THE TWO BUGS FROM TODAY');
   const title = a.d.getElementById('btitle').textContent;
   console.log('  ' + title.trim() + '  (' + tiles + ' earned + ' + slots + ' empty)');
   ok(tiles + slots === 32, 'an album is 32 prizes, not 16', tiles + '+' + slots);
-  ok(tiles === 5, 'the duplicate closed the old album and opened a new one', String(tiles));
-  ok(/5\/32/.test(title), 'and the title counts uniques', title);
+  // a duplicate no longer restarts the album — it is skipped, so all seven
+  // distinct prizes stay on the board
+  ok(tiles === 7, 'a duplicate is skipped rather than closing the album', String(tiles));
+  ok(/7\/32/.test(title), 'and the title counts the distinct ones', title);
   a.w.close();
 }
 
@@ -1141,6 +1143,54 @@ console.log('\n[20] THE GEAR IS REACHABLE FROM EVERYWHERE');
   ok(a.screen() === 'play' && a.d.querySelectorAll('#opts .opt').length === 2,
      'and from a game it returns to a live question',
      a.screen() + '/' + a.d.querySelectorAll('#opts .opt').length);
+  a.w.close();
+}
+
+console.log('\n[21] ALBUMS END WHEN FULL, NOT ON A REPEAT');
+{
+  // her real list: 15 awarded, four of them duplicates from the unsynced days
+  const hers = ['⭐️','🍭','🦖','🦖','🐙','🌈','🎨','🎁','🎁','🦜','🐬','🎨','🐝','🌈','🍓'];
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, prizes:hers });
+  await sleep(220);
+  a.click('#pick-profile'); await sleep(2500);
+  a.click('.flag[data-lang="pl"]'); await sleep(120);
+  a.click('#trophy'); await sleep(80);
+
+  const tiles = a.d.querySelectorAll('#bgrid span').length;
+  const slots = a.d.querySelectorAll('#bgrid .slot').length;
+  const title = a.d.getElementById('btitle').textContent.trim();
+  console.log('  board: ' + title + '   (' + tiles + ' earned + ' + slots + ' empty)');
+  ok(tiles === 11, 'ALL ELEVEN DISTINCT PRIZES ARE ON THE BOARD', String(tiles));
+  ok(tiles + slots === 32, 'and the album is still 32 slots', tiles + '+' + slots);
+  ok(/11\/32/.test(title), 'the title counts the distinct ones', title);
+  ok(!/\s2\s|\s3\s/.test(title), 'and shows no album number', JSON.stringify(title));
+
+  // the stored record is not rewritten — it still says what was awarded
+  const saved = JSON.parse(a.w.localStorage.getItem('litery.child.v2'));
+  ok(saved.prizes.length === 15, 'the stored history keeps all fifteen awards',
+     String(saved.prizes.length));
+  a.w.close();
+}
+
+{
+  // a genuinely completed album must still roll over
+  const full = [];
+  const src = ['⭐️','🌈','🚀','🦋','🐬','🍓','🎠','🌻','🐙','🎨','🦖','🍭','🐝','🌙','🦜','🎁',
+               '🦄','🐧','🦩','🐳','🍉','🍕','🎈','🏰','🚂','🪁','🐞','🌺','🦊','🐨','🧁','🎩'];
+  src.forEach(x => full.push(x));
+  full.push('⭐️', '🌈');          // first two of the next album
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, prizes:full });
+  await sleep(220);
+  a.click('#pick-profile'); await sleep(2500);
+  a.click('.flag[data-lang="pl"]'); await sleep(120);
+  a.click('#trophy'); await sleep(80);
+  const tiles = a.d.querySelectorAll('#bgrid span').length;
+  const title = a.d.getElementById('btitle').textContent.trim();
+  console.log('  after a full set: ' + title + '  (' + tiles + ' earned)');
+  ok(tiles === 2, 'a completed album rolls over to a fresh one', String(tiles));
+  ok(/2/.test(title), 'and the second album is numbered', title);
   a.w.close();
 }
 
