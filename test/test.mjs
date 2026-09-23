@@ -443,8 +443,8 @@ console.log('\n[9] THE EIGHT FIXES');
   const earned = a.d.querySelectorAll('#bgrid span').length;
   const slots  = a.d.querySelectorAll('#bgrid .slot').length;
   console.log('  board: ' + earned + ' earned + ' + slots + ' empty = ' + (earned + slots));
-  ok(earned + slots === 16, 'the board shows a whole album of 16 slots', earned + '+' + slots);
-  ok(/3\/16/.test(a.d.getElementById('btitle').textContent),
+  ok(earned + slots === 32, 'the board shows a whole album of 32 slots', earned + '+' + slots);
+  ok(/3\/32/.test(a.d.getElementById('btitle').textContent),
      'the title counts the album', a.d.getElementById('btitle').textContent);
 
   a.d.querySelector('#bgrid span').click(); await sleep(60);
@@ -477,7 +477,7 @@ console.log('\n[9] THE EIGHT FIXES');
   const got = now[now.length - 1];
   console.log('  album had 15/16, awarded: ' + got + '  (missing was ' + missing + ')');
   ok(got === missing, 'PRIZES DO NOT REPEAT INSIDE AN ALBUM', 'got ' + got);
-  ok(now.length === 16, 'the album is now complete', 'n=' + now.length);
+  ok(now.length === 32, 'the album is now complete', 'n=' + now.length);
   a.w.close();
 }
 
@@ -881,7 +881,7 @@ console.log('\n[16] OPENING A SCREEN TWICE MUST NOT ACCUMULATE');
   console.log('  four opens: ' + JSON.stringify(counts));
   ok(counts.every(c => c.bars === 1), 'EXACTLY ONE PROGRESS BAR, HOWEVER OFTEN IT IS OPENED',
      JSON.stringify(counts.map(c => c.bars)));
-  ok(counts.every(c => c.tiles === 3 && c.slots === 13),
+  ok(counts.every(c => c.tiles === 3 && c.slots === 29),
      'and the album does not grow either', JSON.stringify(counts[3]));
 
   // same check for the dashboard, which builds its rows the same way
@@ -958,6 +958,61 @@ console.log('\n[17] MERGING TWO DEVICES');
   console.log('  after merging the same payload twice: ' + again.length + ' rows, ' + p2.length + ' prizes');
   ok(again.length === lg.length, 'MERGING TWICE ADDS NOTHING', again.length + ' vs ' + lg.length);
   ok(p2.length === 4, 'and does not duplicate the prize', JSON.stringify(p2));
+  a.w.close();
+}
+
+console.log('\n[18] THE TWO BUGS FROM TODAY');
+{
+  // switching language at 19 of 20 used to hand her a prize on question one
+  const a = boot({ name:'Ada', rate:.7, goal:3, lang:'pl', mode:'letters',
+                   prizes:[], day:'', restoredV:2 });
+  await sleep(200);
+  a.click('#pick-profile'); await sleep(2500);
+  a.click('.flag[data-lang="pl"]'); await sleep(100);
+
+  // get her to 2 of 3 in Polish
+  let done = 0;
+  for (let i = 0; i < 8 && done < 2 && a.screen() === 'play'; i++) {
+    const before = a.d.querySelectorAll('#stars .st.f').length;
+    a.clickBtn(i % 2); await sleep(700);
+    const after = a.d.querySelectorAll('#stars .st.f').length;
+    if (after > before) done = after;
+    await sleep(1300);
+  }
+  console.log('  Polish round at ' + done + ' of 3');
+  ok(done === 2, 'reached 2 of 3 in Polish', String(done));
+
+  a.click('#navback'); await sleep(60);
+  a.click('.flag[data-lang="nb"]'); await sleep(150);
+  const carried = a.d.querySelectorAll('#stars .st.f').length;
+  console.log('  stars after switching to Norwegian: ' + carried);
+  ok(carried === 0, 'NORWEGIAN STARTS ITS OWN ROUND, NOT AT 2 OF 3', String(carried));
+
+  // and Polish still has its two when she goes back
+  a.click('#navback'); await sleep(60);
+  a.click('.flag[data-lang="pl"]'); await sleep(150);
+  const back = a.d.querySelectorAll('#stars .st.f').length;
+  console.log('  stars back in Polish: ' + back);
+  ok(back === 2, 'and the Polish round is still where she left it', String(back));
+  a.w.close();
+}
+
+{
+  // the album must be bounded by unique prizes, and big enough to last
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, prizes:['⭐️','🍭','🦖','🦖','🐙','🌈','🎨','🎁'] });
+  await sleep(220);
+  a.click('#pick-profile'); await sleep(2500);
+  a.click('.flag[data-lang="pl"]'); await sleep(100);
+  a.click('#trophy'); await sleep(80);
+
+  const tiles = a.d.querySelectorAll('#bgrid span').length;
+  const slots = a.d.querySelectorAll('#bgrid .slot').length;
+  const title = a.d.getElementById('btitle').textContent;
+  console.log('  ' + title.trim() + '  (' + tiles + ' earned + ' + slots + ' empty)');
+  ok(tiles + slots === 32, 'an album is 32 prizes, not 16', tiles + '+' + slots);
+  ok(tiles === 5, 'the duplicate closed the old album and opened a new one', String(tiles));
+  ok(/5\/32/.test(title), 'and the title counts uniques', title);
   a.w.close();
 }
 

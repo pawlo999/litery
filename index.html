@@ -345,7 +345,7 @@
 (function () {
 'use strict';
 
-var BUILD = 34;   /* visible bottom-right and in the parent panel */
+var BUILD = 35;   /* visible bottom-right and in the parent panel */
 
 /* ============ content ============================================== */
 /* Uppercase is what she SEES. The lowercase `w` is what the VOICE gets. */
@@ -441,7 +441,11 @@ var NUM = {
 };
 
 var PRIZES_PER_ALBUM = 0;   /* set from PRIZES below */
-var PRIZES = ['⭐️','🌈','🚀','🦋','🐬','🍓','🎠','🌻','🐙','🎨','🦖','🍭','🐝','🌙','🦜','🎁'];
+var PRIZES = [
+  '⭐️','🌈','🚀','🦋','🐬','🍓','🎠','🌻','🐙','🎨','🦖','🍭',
+  '🐝','🌙','🦜','🎁','🦄','🐧','🦩','🐳','🍉','🍕','🎈','🏰',
+  '🚂','🪁','🐞','🌺','🦊','🐨','🧁','🎩'
+];
 /* hue-driven so the WHOLE screen follows her colour, not just the buttons.
    onMain is set per entry because white on yellow is unreadable.           */
 var PALETTE = [
@@ -476,7 +480,7 @@ var STAGE = { id:1, missing:'first', options:2, upper:true,
 /* ============ state ================================================= */
 var S = { lang:'pl', rate:0.7, goal:20, correct:0, firstTry:0, asked:0,
           prizes:[], day:'', word:null, answer:'', locked:false, recent:[], mode:'mixed',
-          name:'', restoredV:0, practice:false, qStart:0, hearPic:0, hearTile:0, recentT:[] };
+          name:'', roundBy:{}, restoredV:0, practice:false, qStart:0, hearPic:0, hearTile:0, recentT:[] };
 
 var KEY  = 'litery.child.v2';
 var LKEY = 'litery.child.log';     /* attempt log  */
@@ -583,6 +587,7 @@ function load(){
       var o = JSON.parse(raw);
       S.rate = o.rate || 0.7; S.goal = o.goal || 20; S.lang = o.lang || 'pl';
       S.mode = o.mode || 'mixed'; S.name = o.name || '';
+      S.roundBy = o.roundBy || {};
       S.restoredV = o.restoredV || (o.restored ? 1 : 0);
       S.prizes = o.prizes || []; S.day = o.day || '';
       if(o.day === today()){ S.correct = o.correct||0; S.firstTry = o.firstTry||0; S.asked = o.asked||0; }
@@ -599,7 +604,8 @@ function load(){
 function save(){
   try{
     localStorage.setItem(KEY, JSON.stringify({
-      rate:S.rate, goal:S.goal, lang:S.lang, mode:S.mode, name:S.name, restoredV:S.restoredV,
+      rate:S.rate, goal:S.goal, lang:S.lang, mode:S.mode, name:S.name,
+      roundBy:S.roundBy, restoredV:S.restoredV,
       prizes:S.prizes, day:S.day,
       correct:S.correct, firstTry:S.firstTry, asked:S.asked }));
   }catch(e){}
@@ -918,8 +924,8 @@ function openBoard(){
   var g = $('bgrid');
   g.textContent = '';
   /* show the album she is filling now, not every prize she has ever had */
-  var album   = Math.floor(S.prizes.length / PRIZES.length);
-  var inAlbum = S.prizes.slice(album * PRIZES.length);
+  var inAlbum = albumOf(S.prizes);
+  var album   = albumIndex(S.prizes);
 
   inAlbum.forEach(function(x, i){
     var e = document.createElement('span');
@@ -962,9 +968,26 @@ function drawStars(){
 
 /* she collects each prize once per album; when an album is full a new one
    starts, so the board always has empty slots and never just repeats.     */
+/* Albums are bounded by UNIQUE prizes, not list length. Her collection holds a
+   duplicate left by an old repair, so counting by length meant the album could
+   never complete and one prize was never offered again.                    */
+function albumOf(prizes){
+  var out = [], seen = {};
+  prizes.forEach(function(p){
+    if(seen[p]){ out = []; seen = {}; }   /* a repeat opens the next album */
+    seen[p] = 1; out.push(p);
+  });
+  return out;
+}
+
+function albumIndex(prizes){
+  var n = 0, seen = {};
+  prizes.forEach(function(p){ if(seen[p]){ n++; seen = {}; } seen[p] = 1; });
+  return n;
+}
+
 function awardPrize(){
-  var album = Math.floor(S.prizes.length / PRIZES.length);
-  var inAlbum = S.prizes.slice(album * PRIZES.length);
+  var inAlbum = albumOf(S.prizes);
   var pool = PRIZES.filter(function(p){ return inAlbum.indexOf(p) < 0; });
   if(!pool.length) pool = PRIZES;
   return pool[(Math.random()*pool.length)|0];
@@ -990,7 +1013,9 @@ function confetti(){
 function finish(){
   var st = awardPrize();
   if(!S.practice){
-    S.prizes.push(st); save();
+    S.prizes.push(st);
+    S.roundBy[S.lang] = 0;
+    save();
     LOG.push({ t:Date.now(), l:S.lang, k:'P', x:st });   /* dated, so history can count it */
     saveLog();
     syncUp();                                            /* one push per round */
@@ -1056,8 +1081,7 @@ $('welcome').addEventListener('click', toLang);
 
 Array.prototype.forEach.call(document.querySelectorAll('.flag'), function(f){
   f.addEventListener('click', function(){
-    S.lang = f.getAttribute('data-lang');
-    save();
+    setLang(f.getAttribute('data-lang'));
     S.word = nextWord();
     render();
     show('play');
@@ -1078,8 +1102,18 @@ $('gear').addEventListener('touchend',   function(){ clearTimeout(press); });
 $('gear').addEventListener('mousedown',  function(){ press = setTimeout(openParent, 1200); });
 $('gear').addEventListener('mouseup',    function(){ clearTimeout(press); });
 
+/* A round belongs to a language. One shared counter meant switching at 19 of
+   20 handed her a prize on the first Norwegian question — exactly what it
+   looked like from outside: a prize arriving after one answer.            */
+function setLang(lang){
+  S.roundBy[S.lang] = S.correct;
+  S.lang = lang;
+  S.correct = S.roundBy[lang] || 0;
+  save();
+}
+
 function switchTo(lang){
-  S.lang = lang; save();
+  setLang(lang);
   S.recent = [];
   S.word = nextWord(); render(); show('play');
   say(nm(SAY[S.lang].hi));
