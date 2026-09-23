@@ -296,7 +296,8 @@
   <div class="sbody" id="sbody"></div>
   <div class="srow">
     <button class="pbtn" id="copydata">Copy all data</button>
-    <button class="pbtn" id="importbtn">Import data</button>
+    <button class="pbtn" id="mergebtn">Merge another device</button>
+    <button class="pbtn" id="importbtn">Replace with pasted</button>
     <button class="pbtn" id="sback">Back</button>
   </div>
   <textarea id="dump" class="dump"></textarea>
@@ -344,7 +345,7 @@
 (function () {
 'use strict';
 
-var BUILD = 33;   /* visible bottom-right and in the parent panel */
+var BUILD = 34;   /* visible bottom-right and in the parent panel */
 
 /* ============ content ============================================== */
 /* Uppercase is what she SEES. The lowercase `w` is what the VOICE gets. */
@@ -1225,6 +1226,65 @@ function openStats(){
 
 $('statsbtn') && $('statsbtn').addEventListener('click', openStats);
 $('sback').addEventListener('click', function(){ show('play'); });
+/* Mastery is derived, not authoritative: rebuilt from the log with exactly the
+   rules record() applies. That makes two devices mergeable — you cannot
+   meaningfully average two Leitner boxes, but you can replay both histories. */
+function rebuildMastery(log){
+  var M = {};
+  log.slice()
+     .filter(function(r){ return r.k === 'L' || r.k === 'N'; })
+     .sort(function(a,b){ return a.t - b.t; })
+     .forEach(function(r){
+       var id = r.l + ':' + (r.k === 'N' ? 'N' : 'L') + ':' + r.x;
+       var m = M[id] || { n:0, ft:0, box:1, streak:0, last:0, ms:[] };
+       m.n++;
+       if(!r.w){ m.ft++; m.streak++; m.box = Math.min(5, m.box + 1); }
+       else { m.streak = 0; m.box = 1; }
+       m.last = r.t;
+       if(typeof r.ms === 'number'){ m.ms.push(r.ms); if(m.ms.length > 10) m.ms.shift(); }
+       M[id] = m;
+     });
+  return M;
+}
+
+function rowKey(r){ return r.t + '|' + r.k + '|' + (r.x === undefined ? '' : r.x); }
+
+/* Combine another device's history with this one instead of overwriting it.
+   Prizes are rebuilt too: anything earned before prize logging existed is kept
+   as a prefix, then every dated prize row across both devices in order.     */
+function mergePayload(txt){
+  var d = JSON.parse(txt);
+  if(!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not a data payload');
+  var incoming = Array.isArray(d.log) ? d.log : [];
+  if(!incoming.length) throw new Error('that payload has no history to merge');
+
+  var seen = {}, merged = [];
+  LOG.concat(incoming).forEach(function(r){
+    if(!r || typeof r.t !== 'number') return;
+    var k = rowKey(r);
+    if(seen[k]) return;
+    seen[k] = 1; merged.push(r);
+  });
+  merged.sort(function(a,b){ return a.t - b.t; });
+
+  var before = LOG.length, added = merged.length - before;
+
+  /* prizes earned before any of it was logged, kept as a prefix */
+  var localPrizeRows = LOG.filter(function(r){ return r.k === 'P'; }).length;
+  var prefix = S.prizes.slice(0, Math.max(0, S.prizes.length - localPrizeRows));
+  var dated  = merged.filter(function(r){ return r.k === 'P'; })
+                     .map(function(r){ return r.x; });
+
+  LOG = merged;
+  S.prizes = prefix.concat(dated);
+  MASTERY = rebuildMastery(LOG);
+  S.restoredV = 2;
+  save(); saveLog();
+
+  return { added:added, total:LOG.length, prizes:S.prizes.length,
+           mastery:Object.keys(MASTERY).length };
+}
+
 /* localStorage does not cross origins, so moving her from the laptop URL to
    the published one needs an explicit hand-off. also covers a new iPad.   */
 function importPayload(txt){
@@ -1247,6 +1307,23 @@ function importPayload(txt){
   return { prizes:S.prizes.length, log:LOG.length,
            mastery:Object.keys(MASTERY).length };
 }
+
+$('mergebtn').addEventListener('click', function(){
+  var ta = $('dump');
+  if(ta.style.display === 'block' && ta.dataset.mode === 'merge'){
+    var res;
+    try { res = mergePayload(ta.value); }
+    catch(e){ $('mergebtn').textContent = 'Could not read that: ' + (e.message || e); return; }
+    ta.style.display = 'none'; ta.dataset.mode = '';
+    $('mergebtn').textContent = 'Merged: +' + res.added + ' new rows, ' +
+        res.total + ' total, ' + res.prizes + ' prizes';
+    openStats();
+    return;
+  }
+  ta.value = ''; ta.dataset.mode = 'merge';
+  ta.style.display = 'block'; ta.focus();
+  $('mergebtn').textContent = 'Paste the other device, then tap here again';
+});
 
 $('importbtn').addEventListener('click', function(){
   var ta = $('dump');

@@ -72,6 +72,20 @@ function boot(seed, query) {
   };
 }
 
+function rebuildLike(log){
+  const M = {};
+  log.filter(r => r.k === 'L' || r.k === 'N').sort((a,b)=>a.t-b.t).forEach(r => {
+    const id = r.l + ':' + r.k + ':' + r.x;
+    const m = M[id] || { n:0, ft:0, box:1, streak:0, last:0, ms:[] };
+    m.n++;
+    if (!r.w) { m.ft++; m.streak++; m.box = Math.min(5, m.box+1); }
+    else { m.streak = 0; m.box = 1; }
+    m.last = r.t; m.ms.push(r.ms); if (m.ms.length > 10) m.ms.shift();
+    M[id] = m;
+  });
+  return M;
+}
+
 const PL_NUMS = /jeden|dwa|trzy|cztery|pięć|sześć|siedem|osiem|dziewięć|dziesięć/;
 const NB_NUMS = /\b(en|to|tre|fire|fem|seks|sju|åtte|ni|ti)\b/;
 
@@ -882,6 +896,68 @@ console.log('\n[16] OPENING A SCREEN TWICE MUST NOT ACCUMULATE');
   console.log('  dashboard sections over three opens: ' + JSON.stringify(st));
   ok(st[0] > 0, 'the dashboard actually had sections to count', JSON.stringify(st));
   ok(st[0] === st[1] && st[1] === st[2], 'the dashboard does not accumulate rows', JSON.stringify(st));
+  a.w.close();
+}
+
+console.log('\n[17] MERGING TWO DEVICES');
+{
+  const day = 86400000, t0 = Date.now() - 3*day;
+  // the iPad: long history, prizes, two of them predating prize logging
+  const ipadLog = [];
+  for (let i = 0; i < 30; i++)
+    ipadLog.push({ t:t0 + i*60000, l:'pl', k:'L', s:1, x:(i%2?'s':'t'), d:'b', o:2,
+                   w:(i%3===0?1:0), ms:2200, h:0, c:0 });
+  ipadLog.push({ t:t0 + 31*60000, l:'pl', k:'P', x:'🌈' });
+
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2,
+                   prizes:['🍭','🦖','🌈'],          // two predate logging, one logged
+                   __log: ipadLog,
+                   __mastery: rebuildLike(ipadLog) });
+  await sleep(220);
+  a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown'));
+  await sleep(1400);
+  a.click('#statsbtn'); await sleep(80);
+
+  // the phone: a separate short session today, one prize
+  const phoneLog = [];
+  for (let i = 0; i < 12; i++)
+    phoneLog.push({ t:Date.now() - (12-i)*30000, l:'pl', k:'L', s:1, x:'m', d:'k', o:2,
+                    w:0, ms:1800, h:0, c:0 });
+  phoneLog.push({ t:Date.now() - 1000, l:'pl', k:'P', x:'🐙' });
+  const phone = { build:34, settings:{goal:20,rate:.7,lang:'pl',mode:'letters'},
+                  prizes:['🐙'], mastery:{}, log:phoneLog };
+
+  a.click('#mergebtn'); await sleep(40);
+  a.d.getElementById('dump').value = JSON.stringify(phone);
+  a.click('#mergebtn'); await sleep(120);
+
+  const saved = JSON.parse(a.w.localStorage.getItem('litery.child.v2'));
+  const lg    = JSON.parse(a.w.localStorage.getItem('litery.child.log'));
+  const mast  = JSON.parse(a.w.localStorage.getItem('litery.child.mastery'));
+  console.log('  ' + a.d.getElementById('mergebtn').textContent);
+  console.log('  prizes now: ' + JSON.stringify(saved.prizes));
+
+  ok(lg.length === 31 + 13, 'both histories are present', 'rows=' + lg.length);
+  ok(saved.prizes.length === 4 &&
+     saved.prizes[0] === '🍭' && saved.prizes[1] === '🦖' &&
+     saved.prizes[2] === '🌈' && saved.prizes[3] === '🐙',
+     'PRIZES COMBINE WITHOUT LOSING THE UNLOGGED ONES', JSON.stringify(saved.prizes));
+  ok(!!mast['pl:L:m'], 'the letter only the phone saw is now known', Object.keys(mast).join(','));
+  ok(!!mast['pl:L:s'] && !!mast['pl:L:t'], 'and the iPad letters survive');
+  ok(mast['pl:L:m'].n === 12 && mast['pl:L:m'].box === 5,
+     'mastery is replayed from the merged log, not averaged',
+     JSON.stringify(mast['pl:L:m']));
+
+  // merging the same payload twice must be a no-op
+  a.click('#mergebtn'); await sleep(40);
+  a.d.getElementById('dump').value = JSON.stringify(phone);
+  a.click('#mergebtn'); await sleep(120);
+  const again = JSON.parse(a.w.localStorage.getItem('litery.child.log'));
+  const p2 = JSON.parse(a.w.localStorage.getItem('litery.child.v2')).prizes;
+  console.log('  after merging the same payload twice: ' + again.length + ' rows, ' + p2.length + ' prizes');
+  ok(again.length === lg.length, 'MERGING TWICE ADDS NOTHING', again.length + ' vs ' + lg.length);
+  ok(p2.length === 4, 'and does not duplicate the prize', JSON.stringify(p2));
   a.w.close();
 }
 
