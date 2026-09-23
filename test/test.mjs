@@ -1194,6 +1194,40 @@ console.log('\n[21] ALBUMS END WHEN FULL, NOT ON A REPEAT');
   a.w.close();
 }
 
+console.log('\n[22] THE TOP BAR ON A PHONE');
+{
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, prizes:['⭐️','🍭','🦖','🦖','🐙','🌈','🎨','🎁','🎁',
+                                        '🦜','🐬','🎨','🐝','🌈','🍓'] });
+  await sleep(220);
+  a.click('#pick-profile'); await sleep(2500);
+  a.click('.flag[data-lang="pl"]'); await sleep(120);
+
+  const dots = a.d.querySelectorAll('#stars .st').length;
+  console.log('  dots drawn: ' + dots + ' for a goal of 20');
+  ok(dots === 20, 'ALL TWENTY DOTS EXIST, WHATEVER THE WIDTH', String(dots));
+  ok(!/width:/.test(a.d.querySelector('#stars .st').getAttribute('style') || ''),
+     'and none of them is pinned to a fixed pixel size',
+     a.d.querySelector('#stars .st').getAttribute('style') || '(no inline style)');
+
+  // the back arrow must not borrow the settings gear's fixed position
+  const nav = a.d.getElementById('navback');
+  ok(!nav.classList.contains('gear'),
+     'the back arrow is not a .gear, so it stays in the bar', nav.className);
+  ok(nav.parentElement.classList.contains('top'), 'and sits inside the top bar');
+  ok(a.d.getElementById('gear').parentElement === a.d.body,
+     'while the settings gear is a top-level fixed control');
+
+  // the trophy must count the album, matching the board
+  const count = a.d.getElementById('tcount').textContent;
+  a.click('#trophy'); await sleep(80);
+  const title = a.d.getElementById('btitle').textContent;
+  console.log('  trophy reads ' + count + ', board reads ' + title.trim());
+  ok(count === '11', 'THE TROPHY COUNTS THE ALBUM, NOT EVERY AWARD EVER', count);
+  ok(title.indexOf(count + '/32') >= 0, 'so the two agree', count + ' vs ' + title.trim());
+  a.w.close();
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('HARNESS ERROR', e); process.exit(2); });

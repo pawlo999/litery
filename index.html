@@ -64,10 +64,14 @@
 
   /* ---------- play ---------- */
   #play{justify-content:flex-start;padding:0;}
-  .top{width:100%;display:flex;align-items:center;gap:10px;
-       padding:calc(14px + env(safe-area-inset-top,0px)) 58px 2px 18px;}
+  .top{width:100%;display:flex;align-items:center;gap:8px;
+       padding:calc(14px + env(safe-area-inset-top,0px)) 62px 2px 14px;}
+  .top > *{flex:none;}
+  .top .stars{flex:1 1 0;}   /* basis 0: take only what the controls leave */
   .stars{flex:1;display:flex;gap:4px;align-items:center;}
-  .st{border-radius:50%;background:rgba(255,255,255,.5);box-shadow:inset 0 0 0 2px var(--line);}
+  .stars{min-width:0;}
+  .st{flex:1 1 0;min-width:4px;max-width:18px;aspect-ratio:1;border-radius:50%;
+      background:rgba(255,255,255,.5);box-shadow:inset 0 0 0 2px var(--line);}
   .st.f{background:var(--main);box-shadow:none;}
   .goalpin{font-size:19px;margin-left:5px;opacity:.85;}
   .trophy{background:transparent;border:0;padding:0 4px;min-width:0;
@@ -79,6 +83,12 @@
         width:46px;height:46px;border-radius:50%;background:transparent;border:0;
         font-size:20px;color:var(--dim);opacity:.42;padding:0;margin:0;}
   .gear:active{opacity:1;transform:scale(.92);}
+  /* the back arrow used to borrow .gear and went fixed with it, landing on
+     top of the settings icon. it belongs in the bar.                     */
+  .navb{width:40px;height:40px;border-radius:50%;background:transparent;border:0;
+        font:600 20px/1 ui-rounded,system-ui,sans-serif;color:var(--dim);
+        opacity:.55;padding:0;margin:0;}
+  .navb:active{opacity:1;transform:scale(.92);}
 
   .stage{flex:1;display:flex;flex-direction:column;align-items:center;
          justify-content:space-evenly;width:100%;padding:2px 14px 18px;}
@@ -260,7 +270,7 @@
 <div class="screen" id="play">
   <div class="top">
     <div class="stars" id="stars"></div>
-    <button class="gear" id="navback">←</button>
+    <button class="navb" id="navback">←</button>
     <button class="trophy" id="trophy">🏆<span id="tcount">0</span></button>
   </div>
   <div class="stage">
@@ -367,7 +377,7 @@
 (function () {
 'use strict';
 
-var BUILD = 39;
+var BUILD = 44;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -962,7 +972,7 @@ function answer(val, btn){
   }, 1650);
 }
 
-function updateTrophy(){ $('tcount').textContent = S.prizes.length; }
+function updateTrophy(){ $('tcount').textContent = albumOf(S.prizes).length; }
 
 var boardFrom = 'play';
 
@@ -1010,14 +1020,12 @@ function openBoard(){
 function drawStars(){
   var host = $('stars');
   host.textContent = '';
-  /* the parent panel goes up to 40 — at a fixed 18px those wrap onto a second
-     row and the track stops reading as one journey. size follows the goal.   */
-  var sz = Math.max(8, Math.min(18, ((520 / S.goal) | 0) - 4));
-  for(var i=0;i<S.goal;i++){
+  /* no fixed pixel size: a phone is narrower than the 520px this assumed, so
+     two of twenty dots were pushed off the row and the trophy went with them.
+     flex:1 divides whatever width there actually is.                      */
+  for(var i = 0; i < S.goal; i++){
     var d = document.createElement('div');
     d.className = 'st' + (i < S.correct ? ' f' : '');
-    d.style.width = d.style.height = sz + 'px';
-    d.style.borderWidth = (sz < 14 ? 2 : 3) + 'px';
     host.appendChild(d);
   }
 }
@@ -1522,7 +1530,17 @@ var dev = (location.search.match(/dev=([a-z]+)/) || [])[1];
 var devMode = (location.search.match(/[?&]m=([a-z]+)/) || [])[1];
 if(devMode) S.mode = devMode;
 var devN = (location.search.match(/[?&]n=(\d+)/) || [])[1];
-if(dev === 'play'){ S.word = nextWord();
+if(dev === 'probeui'){
+  S.word = nextWord(); render(); show('play');
+  var rect = function(id){
+    var b = $(id).getBoundingClientRect();
+    return id + '[' + Math.round(b.left) + '-' + Math.round(b.right) + (b.width ? '' : ' HIDDEN') + ']';
+  };
+  document.title = 'W' + window.innerWidth + ' ' + rect('stars') + ' ' + rect('navback') +
+                   ' ' + rect('trophy') + ' ' + rect('gear') +
+                   ' dots=' + document.querySelectorAll('#stars .st').length;
+}
+else if(dev === 'play'){ S.word = nextWord();
   if(devN && S.word.kind === 'number') S.word.n = +devN;
   render(); show('play'); }
 else if(dev === 'welcome'){ $('wtitle').textContent = nm(SAY[S.lang].hi) + '!'; show('welcome'); }
