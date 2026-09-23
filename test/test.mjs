@@ -380,7 +380,10 @@ console.log('\n[8] PARENT DASHBOARD');
      'copy all data produces the full log and mastery', dumped.slice(0,60));
 
   a.click('#sback'); await sleep(60);
-  ok(a.screen() === 'play', 'back returns to the game');
+  // the dashboard now steps back to the panel it was opened from, rather than
+  // dropping straight into the game past the settings
+  ok(a.screen() === 'parent', 'back from the dashboard returns to the panel',
+     'landed on ' + a.screen());
   a.w.close();
 }
 
@@ -1077,6 +1080,67 @@ console.log('\n[19] CLOUD SYNC');
   a.click('#practicebtn'); await sleep(40);
   a.click('#syncnow'); await sleep(150);
   ok(calls === 0, 'a parent test run never syncs', String(calls));
+  a.w.close();
+}
+
+console.log('\n[20] THE GEAR IS REACHABLE FROM EVERYWHERE');
+{
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, prizes:['🍭','🦖'] });
+  await sleep(220);
+  const visible = () => a.d.getElementById('gear').style.display !== 'none';
+  const seen = {};
+
+  seen.profile = visible();
+  a.click('#pick-profile'); await sleep(200);
+  seen.welcome = visible();
+  await sleep(2300);
+  seen.lang = visible();
+  a.click('.flag[data-lang="pl"]'); await sleep(120);
+  seen.play = visible();
+  a.click('#trophy'); await sleep(80);
+  seen.board = visible();
+  a.click('#backx'); await sleep(80);
+
+  a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown'));
+  await sleep(1400);
+  seen.parent = visible();
+  ok(a.screen() === 'parent', 'long press still opens the panel from the game');
+  a.click('#statsbtn'); await sleep(80);
+  seen.stats = visible();
+  ok(a.screen() === 'stats', 'and stats is the first button in the panel');
+
+  console.log('  gear visible on: ' + JSON.stringify(seen));
+  ok(seen.profile && seen.welcome && seen.lang && seen.play && seen.board,
+     'THE GEAR IS ON EVERY SCREEN SHE PLAYS THROUGH', JSON.stringify(seen));
+  ok(!seen.parent && !seen.stats, 'and hidden on the panels themselves', JSON.stringify(seen));
+  a.w.close();
+}
+
+{
+  // it must also work as an entry point from a screen that is not the game
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, prizes:[] });
+  await sleep(220);
+  ok(a.screen() === 'profile', 'starting on the profile screen');
+  a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown'));
+  await sleep(1400);
+  ok(a.screen() === 'parent', 'THE PANEL OPENS WITHOUT STARTING A GAME FIRST',
+     'landed on ' + a.screen());
+  a.click('#pback'); await sleep(80);
+  ok(a.screen() === 'profile',
+     'AND BACK RETURNS WHERE IT WAS OPENED FROM, NOT AN EMPTY GAME',
+     'landed on ' + a.screen());
+
+  // opened during a game, back must land on a question she can answer
+  a.click('#pick-profile'); await sleep(2500);
+  a.click('.flag[data-lang="pl"]'); await sleep(120);
+  a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown'));
+  await sleep(1400);
+  a.click('#pback'); await sleep(100);
+  ok(a.screen() === 'play' && a.d.querySelectorAll('#opts .opt').length === 2,
+     'and from a game it returns to a live question',
+     a.screen() + '/' + a.d.querySelectorAll('#opts .opt').length);
   a.w.close();
 }
 
