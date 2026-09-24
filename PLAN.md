@@ -59,8 +59,11 @@ items". With three letters that was fine; as soon as the pool grew, the whole
 distribution. Staleness does the same job without the cliff.
 
 **How many letters are in play** *(b32)* is capped separately: she sees the
-letters she has already met plus `newAtOnce` (2) she has not. Thirteen letters
-arriving at once would drop her from 67 % to near guessing in one session.
+letters she owns (box 4+) plus at most `learnAtOnce` (3) below box 4. Thirteen
+letters arriving at once would drop her from 67 % to near guessing in one session.
+The first version capped letters she had *met* — each new letter counted as met
+on its first question and opened the next slot, so on 23 Sep all 13 Polish
+letters arrived in five minutes and first-try accuracy fell to 54 % and 35 %.
 
 The deeper fix was ordering: the letter is chosen **first**, and the word is
 picked to carry it. Previously a word was drawn at random and the letter fell

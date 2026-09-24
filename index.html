@@ -377,7 +377,7 @@
 (function () {
 'use strict';
 
-var BUILD = 44;
+var BUILD = 45;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -435,7 +435,7 @@ var LETTER = {
 };
 
 /* the answerable letters, in the order she meets them. activePool() below
-   only exposes the ones she has seen plus a couple of new ones, so growing
+   only exposes the ones she owns plus three she is learning, so growing
    this list does not flood her with unknowns in a single session.        */
 var POOL = {
   pl: ['s','b','t','m','k','l','d','n','o','a','r','p','w'],
@@ -510,7 +510,7 @@ function theme(c){
 var STAGE = { id:1, missing:'first', options:2, upper:true,
                maxCount:5,        /* how big the numbers get  */
                numberEvery:4,     /* how often one comes up   */
-               newAtOnce:2 };     /* unseen letters in play at a time */
+               learnAtOnce:3 };   /* letters below box 4 in play at a time */
 
 /* ============ state ================================================= */
 var S = { lang:'pl', rate:0.7, goal:20, correct:0, firstTry:0, asked:0,
@@ -756,18 +756,20 @@ function targetsFor(kind){
   return POOL[S.lang];
 }
 
-/* Only the letters she has already met, plus a couple she has not. Thirteen
-   letters arriving at once would drop her from 67% to near guessing in a
-   single session; this lets the alphabet arrive two at a time instead.   */
+/* Letters she owns (box 4+) plus at most three she is still learning.
+   Capping letters she had merely MET let each new one open the next slot
+   on its first appearance — on 23 Sep all 13 Polish letters arrived in
+   five minutes and first-try accuracy fell to chance.                     */
 function activePool(kind){
   var all = targetsFor(kind);
   if(kind === 'number') return all;
-  var seen = [], unseen = [];
+  var known = [], learning = [], unseen = [];
   all.forEach(function(t){
-    (MASTERY[mkey(kind, t)] ? seen : unseen).push(t);
+    var m = MASTERY[mkey(kind, t)];
+    (!m ? unseen : m.box >= 4 ? known : learning).push(t);
   });
-  if(seen.length < 3) return all.slice(0, 3);
-  return seen.concat(unseen.slice(0, STAGE.newAtOnce));
+  var open = Math.max(0, STAGE.learnAtOnce - learning.length);
+  return known.concat(learning.slice(0, STAGE.learnAtOnce), unseen.slice(0, open));
 }
 
 /* weight = 6 - box, so a letter she keeps missing (box 1) comes up five times
@@ -1324,7 +1326,7 @@ function openStats(){
   host.appendChild(el('div','shead','Stage ' + STAGE.id + ' — clears at 80% on two days'));
   [['pl','Polish'],['nb','Norwegian']].forEach(function(L){
     var saveLang = S.lang; S.lang = L[0];
-    var targets = activePool('letter');
+    var targets = targetsFor('letter');   /* the whole stage, not today's pool */
     S.lang = saveLang;
     var ready = targets.filter(function(t){
       var m = MASTERY[L[0]+':L:'+t];
@@ -1544,7 +1546,7 @@ else if(dev === 'play'){ S.word = nextWord();
   if(devN && S.word.kind === 'number') S.word.n = +devN;
   render(); show('play'); }
 else if(dev === 'welcome'){ $('wtitle').textContent = nm(SAY[S.lang].hi) + '!'; show('welcome'); }
-else if(dev === 'probe'){ window.__probe = { chooseTarget:chooseTarget, nextWord:nextWord }; }
+else if(dev === 'probe'){ window.__probe = { chooseTarget:chooseTarget, nextWord:nextWord, activePool:activePool }; }
 else if(dev === 'lang'){ show('lang'); }
 else if(dev === 'parent'){ S.word = nextWord(); render(); openParent(); }
 else if(dev === 'stats'){

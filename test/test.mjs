@@ -1,7 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'fs';
 
-const APP = '/home/ps/priv/litery/index.html';
+const APP = new URL('../index.html', import.meta.url);
 const KEY = 'litery.child.v2';
 
 let pass = 0, fail = 0;
@@ -699,6 +699,46 @@ console.log('\n[13] WEIGHTED SELECTION — her real problem');
      'no single mastered letter hogs a fifth once others are learned',
      'S=' + p('s') + '% B=' + p('b') + '%');
   a.w.close();
+}
+
+console.log('\n[13b] NEW LETTERS DO NOT FLOOD IN');
+{
+  // her real 23 Sep start: Polish S and B owned, T still missed
+  const mastery = {
+    'pl:L:s': { n:19, ft:15, box:4, streak:3, last:Date.now(), ms:[3200] },
+    'pl:L:b': { n:14, ft:13, box:5, streak:9, last:Date.now(), ms:[3400] },
+    'pl:L:t': { n:20, ft:10, box:1, streak:0, last:Date.now(), ms:[4400] }
+  };
+  const a = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+                   restoredV:2, __mastery:mastery }, '?dev=probe');
+  await sleep(200);
+  const pool0 = a.w.__probe.activePool('letter');
+  console.log('  pool at start: ' + pool0.join(' '));
+  ok(pool0.join('') === 'sbtmk', 'two owned + T + two new', pool0.join(' '));
+  a.w.close();
+
+  // each new letter answered once, wrongly — exactly what cascaded on 23 Sep
+  const met = Object.assign({}, mastery);
+  for (const x of ['m', 'k', 'l', 'd', 'n'])
+    met['pl:L:' + x] = { n:1, ft:0, box:1, streak:0, last:Date.now(), ms:[6000] };
+  const b1 = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+                    restoredV:2, __mastery:met }, '?dev=probe');
+  await sleep(200);
+  const pool1 = b1.w.__probe.activePool('letter');
+  console.log('  after meeting five new letters once: ' + pool1.join(' '));
+  ok(pool1.join('') === 'sbtmk', 'MEETING A LETTER DOES NOT OPEN THE NEXT SLOT', pool1.join(' '));
+  b1.w.close();
+
+  // owning one frees a slot for the next
+  const owned = Object.assign({}, met,
+    { 'pl:L:t': Object.assign({}, mastery['pl:L:t'], { box:4 }) });
+  const b2 = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+                    restoredV:2, __mastery:owned }, '?dev=probe');
+  await sleep(200);
+  const pool2 = b2.w.__probe.activePool('letter');
+  console.log('  after T reaches box 4: ' + pool2.join(' '));
+  ok(pool2.join('') === 'sbtmkl', 'OWNING A LETTER LETS THE NEXT ONE IN', pool2.join(' '));
+  b2.w.close();
 }
 
 console.log('\n[14] NAME OFF THE SOURCE');
