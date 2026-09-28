@@ -377,7 +377,7 @@
 (function () {
 'use strict';
 
-var BUILD = 45;
+var BUILD = 46;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -510,12 +510,15 @@ function theme(c){
 var STAGE = { id:1, missing:'first', options:2, upper:true,
                maxCount:5,        /* how big the numbers get  */
                numberEvery:4,     /* how often one comes up   */
-               learnAtOnce:3 };   /* letters below box 4 in play at a time */
+               learnAtOnce:3,     /* letters below box 4 in play at a time */
+               backAfter:2,       /* a missed letter is asked again this many questions on */
+               backMax:2 };       /* ...and at most this many times in a round */
 
 /* ============ state ================================================= */
 var S = { lang:'pl', rate:0.7, goal:20, correct:0, firstTry:0, asked:0,
           prizes:[], day:'', word:null, answer:'', locked:false, recent:[], mode:'mixed',
-          name:'', roundBy:{}, syncKey:'', syncMsg:'', restoredV:0, practice:false, qStart:0, hearPic:0, hearTile:0, recentT:[] };
+          name:'', roundBy:{}, syncKey:'', syncMsg:'', restoredV:0, practice:false, qStart:0, hearPic:0, hearTile:0, recentT:[],
+          due:[], back:{}, firstTap:0 };
 
 var KEY  = 'litery.child.v2';
 var LKEY = 'litery.child.log';     /* attempt log  */
@@ -567,12 +570,14 @@ function saveLog(){
 
 /* one row per question she finished. short keys because this is on disk.
    t=when l=language k=L|N s=stage x=target d=distractor o=options
-   w=wrong taps ms=time to answer h=picture taps c=letter-tile taps        */
+   w=wrong taps ms=time to answer h=picture taps c=letter-tile taps
+   f=time to her FIRST tap  b=1 when this was a missed letter coming back  */
 function record(target, distractor, wrongTaps, ms){
   if(S.practice) return;                 /* parent test runs never count */
   LOG.push({ t:Date.now(), l:S.lang, k:S.word.kind === 'number' ? 'N' : 'L',
              s:STAGE.id, x:String(target), d:String(distractor), o:STAGE.options,
-             w:wrongTaps, ms:ms, h:S.hearPic, c:S.hearTile });
+             w:wrongTaps, ms:ms, h:S.hearPic, c:S.hearTile,
+             f:S.firstTap || ms, b:S.word.back ? 1 : 0 });
 
   /* Leitner-style box per item: first-try correct promotes, a miss resets.
      box 5 == she owns it. this is what stage advancement will read.       */
@@ -809,12 +814,41 @@ function chooseTarget(kind){
   return pickWeighted(kind, pool);
 }
 
+/* A miss used to cost her nothing: with two buttons the other one is right,
+   and the second tap earned the same star. On 27 Sep Polish K stood at 61%
+   over 28 tries — a guess. So a missed letter is asked again a couple of
+   questions later, and only a right FIRST try on its return clears it.
+   Never more than backMax returns per letter per round, so a letter she
+   truly does not know cannot take the round over.                        */
+function comeBack(t){
+  var id = S.lang + ':' + t;
+  S.due = S.due.filter(function(d){ return !(d.lang === S.lang && d.t === t); });
+  if((S.back[id] || 0) >= STAGE.backMax) return;
+  S.due.push({ lang:S.lang, t:t, left:STAGE.backAfter });
+}
+
+function takeDue(kind){
+  S.due.forEach(function(d){ if(d.lang === S.lang) d.left--; });
+  if(kind !== 'letter') return null;
+  for(var i = 0; i < S.due.length; i++){
+    var d = S.due[i];
+    if(d.lang === S.lang && d.left <= 0){
+      S.due.splice(i, 1);
+      var id = d.lang + ':' + d.t;
+      S.back[id] = (S.back[id] || 0) + 1;
+      return d.t;
+    }
+  }
+  return null;
+}
+
 function nextWord(){
   var kind = S.mode === 'letters' ? 'letter'
            : S.mode === 'numbers' ? 'number'
            : (S.correct % STAGE.numberEvery === STAGE.numberEvery - 1 ? 'number' : 'letter');
 
-  var target = chooseTarget(kind);
+  var due = takeDue(kind);
+  var target = due || chooseTarget(kind);
   S.recentT.push(kind + target);
   if(S.recentT.length > 3) S.recentT.shift();
 
@@ -834,7 +868,7 @@ function nextWord(){
   var pick = cands[(Math.random() * cands.length) | 0];
   S.recent.push(pick.w);
   if(S.recent.length > 4) S.recent.shift();
-  return { kind:'letter', w:pick.w, e:pick.e };
+  return { kind:'letter', w:pick.w, e:pick.e, back:!!due };
 }
 
 /* what the picture says when tapped */
@@ -930,6 +964,7 @@ function render(){
   S.locked = false;
   S.missed = false;
   S.wrongTaps = 0;
+  S.firstTap = 0;
   S.qStart = Date.now();
   S.hearPic = 0;
   S.hearTile = 0;
@@ -942,6 +977,7 @@ function render(){
 function answer(val, btn){
   if(S.locked) return;
   unlock();
+  if(!S.firstTap) S.firstTap = Date.now() - S.qStart;
 
   if(val !== S.answer){
     S.missed = true;
@@ -963,7 +999,14 @@ function answer(val, btn){
     if(!S.missed) S.firstTry++;
   }
   tone([660,880]);
-  setTimeout(sayQuestion, 260);
+  /* after a miss the right tap says the letter inside THIS word — the
+     teaching moment. a clean answer just hears the word, as before.  */
+  if(S.missed && S.word.kind === 'letter'){
+    var said = S.answer + LINK[S.lang] + S.word.w;
+    setTimeout(function(){ say(said, letterRate()); }, 260);
+  }
+  else setTimeout(sayQuestion, 260);
+  if(S.missed && S.word.kind === 'letter') comeBack(S.answer);
   drawStars();
   updateTrophy();
   save();
@@ -1085,6 +1128,7 @@ function confetti(){
 }
 
 function finish(){
+  S.back = {};       /* a new round gives every letter its returns back */
   var st = awardPrize();
   if(!S.practice){
     S.prizes.push(st);
@@ -1546,7 +1590,7 @@ else if(dev === 'play'){ S.word = nextWord();
   if(devN && S.word.kind === 'number') S.word.n = +devN;
   render(); show('play'); }
 else if(dev === 'welcome'){ $('wtitle').textContent = nm(SAY[S.lang].hi) + '!'; show('welcome'); }
-else if(dev === 'probe'){ window.__probe = { chooseTarget:chooseTarget, nextWord:nextWord, activePool:activePool }; }
+else if(dev === 'probe'){ window.__probe = { chooseTarget:chooseTarget, nextWord:nextWord, activePool:activePool, S:S }; }
 else if(dev === 'lang'){ show('lang'); }
 else if(dev === 'parent'){ S.word = nextWord(); render(); openParent(); }
 else if(dev === 'stats'){

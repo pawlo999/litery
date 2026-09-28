@@ -1268,6 +1268,87 @@ console.log('\n[22] THE TOP BAR ON A PHONE');
   a.w.close();
 }
 
+console.log('\n[23] A MISSED LETTER COMES BACK');
+{
+  // her data on 27 Sep: Polish K right 61% of 28 tries with two buttons, so a
+  // guess cost nothing — the second tap still earned the star
+  const a = boot({ name:'Ada', rate:.7, goal:30, lang:'pl', mode:'letters', day:'',
+                   restoredV:2, prizes:[] }, '?dev=probe');
+  await sleep(220);
+  a.click('#pick-profile'); await sleep(2500);
+  a.click('.flag[data-lang="pl"]'); await sleep(120);
+
+  const btnFor = right => [...a.d.querySelectorAll('#opts .opt')]
+    .findIndex(b => (b.textContent.toLowerCase() === a.w.__probe.S.answer) === right);
+  const lastRow = () => { const l = JSON.parse(a.w.localStorage.getItem('litery.child.log') || '[]');
+                          return l[l.length - 1]; };
+  async function miss() {
+    const t = a.w.__probe.S.answer, w = a.w.__probe.S.word.w;
+    await sleep(300);                  // a first tap that is measurably later than the start
+    a.clickBtn(btnFor(false)); await sleep(600);
+    a.clear();
+    a.clickBtn(btnFor(true)); await sleep(500);
+    const said = a.said();
+    await sleep(1400);
+    return { t, w, said, row: lastRow() };
+  }
+  async function hit() {
+    const t = a.w.__probe.S.answer;
+    a.clickBtn(btnFor(true)); await sleep(1900);
+    return { t, row: lastRow() };
+  }
+
+  const m1 = await miss();
+  console.log('  missed ' + m1.t + ' (' + m1.w + '), then heard ' + JSON.stringify(m1.said));
+  ok(m1.said.some(x => x === m1.t + ' jak ' + m1.w),
+     'AFTER A MISS THE RIGHT TAP SAYS "<letter> jak <this word>"', JSON.stringify(m1.said));
+  ok(typeof m1.row.f === 'number' && m1.row.f >= 250 && m1.row.f < m1.row.ms,
+     'the row keeps the time to her FIRST tap, before the time to the right one',
+     'f=' + m1.row.f + ' ms=' + m1.row.ms);
+
+  const q2 = await hit();
+  ok(!q2.row.b, 'the question in between is an ordinary one', JSON.stringify(q2.row));
+  const back = a.w.__probe.S.answer;
+  console.log('  question after that asks: ' + back + ' (missed was ' + m1.t + ')');
+  ok(back === m1.t, 'THE MISSED LETTER IS ASKED AGAIN TWO QUESTIONS LATER', back + ' vs ' + m1.t);
+
+  // she misses it again, and again: it may return twice in a round, not forever
+  const m2 = await miss();
+  ok(m2.row.b === 1, 'the returned question is marked in the log', JSON.stringify(m2.row));
+  await hit();
+  ok(a.w.__probe.S.answer === m1.t, 'missed on its return, it comes back once more', a.w.__probe.S.answer);
+  await miss();
+  const pending = a.w.__probe.S.due.filter(d => d.t === m1.t).length;
+  ok(pending === 0, 'AFTER TWO RETURNS IN A ROUND IT STOPS CHASING HER', JSON.stringify(a.w.__probe.S.due));
+
+  // a right first try on a returned letter clears it
+  a.w.__probe.S.due = []; a.w.__probe.S.back = {};
+  const m3 = await miss(); await hit();
+  ok(a.w.__probe.S.answer === m3.t, 'a fresh miss returns as before', a.w.__probe.S.answer + ' vs ' + m3.t);
+  const h = await hit();
+  ok(h.row.b === 1 && h.row.w === 0 && a.w.__probe.S.due.length === 0,
+     'got right on its return, nothing is left waiting', JSON.stringify(a.w.__probe.S.due));
+  a.w.close();
+}
+{
+  // a number slot does not eat the return — it waits for the next letter
+  const a = boot({ rate:.7, goal:20, lang:'pl', mode:'mixed', prizes:[], day:'', restoredV:2 },
+                 '?dev=probe');
+  await sleep(200);
+  a.w.__probe.S.correct = 3;                       // 3 % 4 === 3: this slot is a number
+  a.w.__probe.S.due = [{ lang:'pl', t:'b', left:0 }];
+  const n = a.w.__probe.nextWord();
+  ok(n.kind === 'number' && a.w.__probe.S.due.length === 1, 'a number slot leaves the return waiting',
+     JSON.stringify(n) + ' ' + JSON.stringify(a.w.__probe.S.due));
+  a.w.__probe.S.correct = 4;
+  const l = a.w.__probe.nextWord();
+  ok(l.kind === 'letter' && l.w.charAt(0).toLowerCase() === 'b' && l.back,
+     'and the next letter slot asks it', JSON.stringify(l));
+  a.w.__probe.S.lang = 'nb'; a.w.__probe.S.due = [{ lang:'pl', t:'b', left:0 }];
+  ok(!a.w.__probe.nextWord().back, 'a Polish return never fires inside a Norwegian round');
+  a.w.close();
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('HARNESS ERROR', e); process.exit(2); });
