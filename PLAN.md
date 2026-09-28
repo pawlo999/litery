@@ -144,7 +144,8 @@ is the single largest piece of work in this plan, and it is content, not code.
 | S1 | attempt log, mastery boxes, parent test run | **done, b16** |
 | S2 | parent dashboard — make the data visible | **done, b17** |
 | S3 | weighted selection — the app starts adapting | **done, b25** |
-| S4 | auto-advancement + L2, L3 | next |
+| S3b | a missed letter comes back 2 questions later; first-tap time logged | **done, b46** — guessing was free: K 61% over 28 tries with 2 buttons |
+| S4 | auto-advancement + L2, L3 | on hold — PL at 5/13 known, the 80% rule would not fire for weeks |
 | S5 | content: 60–80 words per language | **done, b32** — 13 PL letters / 39 words, 12 NO / 32 |
 | S6 | L4–L6 position variants | |
 | S7 | case axis | |
