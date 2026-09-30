@@ -30,7 +30,7 @@ async function findWrong(a, tries = 8) {
   return null;
 }
 
-function boot(seed, query) {
+function boot(seed, query, pre) {
   const dom = new JSDOM(readFileSync(APP, 'utf8'), {
     runScripts: 'dangerously',
     url: 'http://localhost/' + (query || ''),
@@ -53,6 +53,7 @@ function boot(seed, query) {
           cancel: () => {}, onvoiceschanged: null
         }
       });
+      if (pre) pre(w);
     }
   });
   const w = dom.window, d = w.document;
@@ -1347,6 +1348,143 @@ console.log('\n[23] A MISSED LETTER COMES BACK');
   a.w.__probe.S.lang = 'nb'; a.w.__probe.S.due = [{ lang:'pl', t:'b', left:0 }];
   ok(!a.w.__probe.nextWord().back, 'a Polish return never fires inside a Norwegian round');
   a.w.close();
+}
+
+console.log('\n[AUDIT 2026-09-30] ROUND COUNTER, SYNC AND PAUSE FIXES');
+const saved = a => { const o = {}; for (let i = 0; i < a.w.localStorage.length; i++) {
+  const k = a.w.localStorage.key(i); o[k] = a.w.localStorage.getItem(k); } return o; };
+const bootFrom = (store, pre) => boot({}, '?dev=probe', w => {
+  w.localStorage.clear(); for (const [k, v] of Object.entries(store)) w.localStorage.setItem(k, v);
+  if (pre) pre(w); });
+const tapRight = async (a, wait = 1800) => {
+  const S = a.w.__probe.S, want = S.word.kind === 'number' ? S.answer : S.answer.toUpperCase();
+  [...a.d.querySelectorAll('#opts .opt')].find(b => b.textContent === want).click();
+  await sleep(wait);
+};
+{
+  // a finished round, then the app is reloaded the same day
+  const a = boot({ goal:5, lang:'pl', mode:'letters', prizes:[] }, '?dev=probe');
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(50);
+  for (let i = 0; i < 5; i++) await tapRight(a);
+  ok(a.screen() === 'reward', 'five right answers finish a round of five');
+  ok(JSON.parse(a.w.localStorage.getItem(KEY)).correct === 0,
+     'THE FINISHED ROUND IS SAVED AS 0, NOT AS THE GOAL');
+  const b = bootFrom(saved(a)); await sleep(150);
+  b.click('.flag[data-lang="pl"]'); await sleep(50);
+  ok(b.d.querySelectorAll('#stars .st.f').length === 0, 'after a reload the stars start empty');
+  await tapRight(b);
+  ok(b.screen() === 'play', 'A RELOAD DOES NOT GIVE A PRIZE FOR ONE ANSWER', b.screen());
+  a.w.close(); b.w.close();
+}
+{
+  // a device primed by an older build: a finished round stored in roundBy
+  const c = boot({ goal:5, lang:'nb', mode:'letters', prizes:[], roundBy:{ pl:5 } }, '?dev=probe');
+  await sleep(150);
+  c.click('.flag[data-lang="pl"]'); await sleep(50);
+  ok(c.w.__probe.S.correct === 0, 'a stored count at the goal is not restored as progress',
+     String(c.w.__probe.S.correct));
+  c.w.close();
+}
+{
+  // test run: its own counter, reaches the prize screen, touches nothing
+  const a = boot({ goal:5, lang:'pl', mode:'mixed', prizes:[], day:'' }, '?dev=probe');
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(50);
+  await tapRight(a);                                     // one real answer first
+  a.w.__probe.S.practice = true; a.w.__probe.S.practiceN = 0;
+  const kinds = [];
+  for (let i = 0; i < 5; i++) {
+    kinds.push(a.w.__probe.S.word.kind[0]);
+    if (i === 2) ok(a.d.querySelectorAll('#stars .st.f').length === 2, 'the test run fills its own stars');
+    await tapRight(a);
+  }
+  ok(a.screen() === 'reward', 'A TEST RUN REACHES THE PRIZE SCREEN', a.screen());
+  ok(kinds.includes('n'), 'a mixed test run still asks numbers', kinds.join(''));
+  const st = JSON.parse(a.w.localStorage.getItem(KEY));
+  ok(st.correct === 1 && st.prizes.length === 0, 'and leaves her round and her prizes alone',
+     JSON.stringify({ correct: st.correct, prizes: st.prizes }));
+  a.w.close();
+}
+{
+  // the board opened during the pause after the last answer of a round
+  const a = boot({ goal:5, lang:'pl', mode:'letters', prizes:[], day:'' }, '?dev=probe');
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(50);
+  a.w.__probe.S.correct = 4;
+  await tapRight(a, 500);
+  a.click('#trophy'); await sleep(1500);
+  ok(a.screen() === 'board', 'THE BOARD STAYS OPEN THROUGH THE PAUSE', a.screen());
+  a.click('#backx'); await sleep(50);
+  ok(a.screen() === 'reward', 'leaving it finishes the round she completed', a.screen());
+  a.w.close();
+}
+{
+  // in and out of the board faster than the pause: no question is skipped
+  const a = boot({ goal:20, lang:'pl', mode:'letters', prizes:[], day:'' }, '?dev=probe');
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(50);
+  await tapRight(a, 300);
+  a.click('#trophy'); await sleep(50); a.click('#backx'); await sleep(50);
+  const q = a.w.__probe.S.word;
+  await sleep(1600);
+  ok(a.w.__probe.S.word === q && !a.w.__probe.S.locked,
+     'the late timer does not replace the question she is looking at');
+  a.w.close();
+}
+{
+  // answers given while a cloud sync is in flight survive the reply
+  let release;
+  const a = boot({ goal:20, lang:'pl', mode:'letters', prizes:['⭐️'], day:'',
+                   syncKey:'x'.repeat(32) }, '?dev=probe', w => {
+    w.fetch = (url, opt) => new Promise(res => {
+      const sent = JSON.parse(opt.body);
+      release = () => res({ json: async () => ({ log: sent.log.slice(), mastery:{},
+                                                 prizes: sent.prizes, added: 0 }) });
+    });
+  });
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(50);
+  await sleep(1900);                                   // the launch sync is now in flight
+  await tapRight(a); await tapRight(a);
+  release(); await sleep(100);
+  const lg = JSON.parse(a.w.localStorage.getItem('litery.child.log'));
+  const mast = JSON.parse(a.w.localStorage.getItem('litery.child.mastery'));
+  ok(lg.length === 2, 'ANSWERS GIVEN DURING A SYNC ARE KEPT', lg.length + ' rows');
+  ok(Object.values(mast).reduce((n, m) => n + m.n, 0) === 2, 'and still count in what she knows');
+  ok(JSON.parse(a.w.localStorage.getItem(KEY)).prizes.length === 1, 'prizes come back as the server sent them');
+  a.w.close();
+}
+{
+  // the phone keeps its whole log: 2500 rows survive a save
+  const many = Array.from({ length: 2500 }, (_, i) => ({ t: 1e12 + i, l:'pl', k:'L', x:'s', w:0, ms:900 }));
+  const a = boot({ goal:20, lang:'pl', mode:'letters', prizes:[], __log: many }, '?dev=probe');
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(50);
+  await tapRight(a);
+  ok(JSON.parse(a.w.localStorage.getItem('litery.child.log')).length === 2501,
+     'THE LOG IS NOT TRIMMED AT 2000 ROWS');
+  a.w.close();
+}
+{
+  // the server: a device holding a trimmed log cannot grow the prize list
+  const src = readFileSync(new URL('../sync/src/worker.js', import.meta.url), 'utf8');
+  const worker = (await import('data:text/javascript,' + encodeURIComponent(src))).default;
+  const kv = new Map(), env = { LITERY: { get: async k => kv.has(k) ? JSON.parse(kv.get(k)) : null,
+                                           put: async (k, v) => kv.set(k, v) } };
+  const post = async body => (await worker.fetch(new Request('https://x/s/' + 'k'.repeat(32),
+                               { method:'POST', body: JSON.stringify(body) }), env)).json();
+  let log = [], prizes = ['a','b','c','d'], t = 1;
+  for (let round = 0; round < 130; round++) {
+    for (let i = 0; i < 20; i++) log.push({ t: t++, l:'pl', k:'L', x:'s', w:0, ms:1000 });
+    log.push({ t: t++, l:'pl', k:'P', x:'p' + round }); prizes.push('p' + round);
+    const d = await post({ prizes, log });
+    log = d.log.slice(-2000); prizes = d.prizes;       // a client trimming the way b46 did
+  }
+  ok(prizes.length === 134, 'A TRIMMED CLIENT LOG NO LONGER INFLATES PRIZES', prizes.length + ' of 134');
+  const fresh = await (await worker.fetch(new Request('https://x/s/' + 'q'.repeat(32),
+                  { method:'POST', body: JSON.stringify({ prizes:['a','b'], log:[] }) }), env)).json();
+  ok(fresh.prizes.length === 2, 'a first post still sets the pre-logging prizes');
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

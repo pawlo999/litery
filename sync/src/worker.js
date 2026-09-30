@@ -97,9 +97,11 @@ export default {
     const incomingPrefix = prefixOf(body.prizes, incomingLog);
 
     const next = {
-      // the longer prefix wins: a device that never saw the old prizes must
-      // not be able to shorten the collection
-      prefix: incomingPrefix.length > state.prefix.length ? incomingPrefix : state.prefix,
+      // the prefix is prizes won before prize rows were logged, so it is
+      // fixed history: taken once, from the first post, and never changed.
+      // Recomputing it from each post let a device holding a trimmed log
+      // count the trimmed prizes as prefix and re-add them on every sync.
+      prefix: state.prefix.length || state.log.length ? state.prefix : incomingPrefix,
       log: mergeLogs(state.log, incomingLog),
       settings: body.settings && Object.keys(body.settings).length ? body.settings : state.settings,
       name: state.name || body.name || '',

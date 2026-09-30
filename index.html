@@ -377,7 +377,7 @@
 (function () {
 'use strict';
 
-var BUILD = 46;
+var BUILD = 47;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -518,7 +518,7 @@ var STAGE = { id:1, missing:'first', options:2, upper:true,
 var S = { lang:'pl', rate:0.7, goal:20, correct:0, firstTry:0, asked:0,
           prizes:[], day:'', word:null, answer:'', locked:false, recent:[], mode:'mixed',
           name:'', roundBy:{}, syncKey:'', syncMsg:'', restoredV:0, practice:false, qStart:0, hearPic:0, hearTile:0, recentT:[],
-          due:[], back:{}, firstTap:0 };
+          due:[], back:{}, firstTap:0, practiceN:0 };
 
 var KEY  = 'litery.child.v2';
 var LKEY = 'litery.child.log';     /* attempt log  */
@@ -546,7 +546,10 @@ function readKey(k){
   }catch(e){ return null; }
 }
 
-var LOG_CAP = 2000;   /* was deleted by an edit to the block above; its
+/* ~100 bytes a row: 30 000 rows is ~3 MB, over a year of play. It was 2000,
+   and a trimmed log made the sync server count the trimmed prizes as
+   "won before logging" and hand them back again on every sync.          */
+var LOG_CAP = 30000;  /* was deleted by an edit to the block above; its
                          absence threw inside saveLog and lost every row */
 var LOG = [], MASTERY = {};
 
@@ -610,9 +613,17 @@ function cloudSync(){
   .then(function(r){ return r.json(); })
   .then(function(d){
     if(!d || !Array.isArray(d.log)) throw new Error((d && d.error) || 'bad reply');
-    LOG = d.log;
-    MASTERY = (d.mastery && Object.keys(d.mastery).length) ? d.mastery : rebuildMastery(LOG);
-    if(Array.isArray(d.prizes)) S.prizes = d.prizes;
+    /* merge, never replace: anything she answered while this request was in
+       flight is in LOG but not in the reply, and replacing dropped it.     */
+    var inReply = {};
+    d.log.forEach(function(r){ if(r) inReply[rowKey(r)] = 1; });
+    var late = LOG.filter(function(r){ return r && !inReply[rowKey(r)]; });
+    LOG = mergeRows(d.log, late);
+    MASTERY = rebuildMastery(LOG);
+    if(Array.isArray(d.prizes)){
+      S.prizes = d.prizes.concat(late.filter(function(r){ return r.k === 'P'; })
+                                     .map(function(r){ return r.x; }));
+    }
     saveLog(); save();
     S.syncMsg = LOG.length + ' rows in sync' + (d.added ? ' (+' + d.added + ')' : '');
   })
@@ -658,6 +669,7 @@ function load(){
     }
   }catch(e){}
   if(S.day !== today()){ S.day = today(); S.correct = 0; S.firstTry = 0; S.asked = 0; }
+  if(S.correct >= S.goal) S.correct = 0;
   /* renaming sticker->prize bumped the storage key and wiped what she had
      already earned. give those three back, once. never bump a key again -
      migrate the old one instead.                                          */
@@ -842,10 +854,14 @@ function takeDue(kind){
   return null;
 }
 
+/* where this round stands. a test run counts on its own so it can reach the
+   prize screen without moving her real round.                            */
+function progress(){ return S.practice ? S.practiceN : S.correct; }
+
 function nextWord(){
   var kind = S.mode === 'letters' ? 'letter'
            : S.mode === 'numbers' ? 'number'
-           : (S.correct % STAGE.numberEvery === STAGE.numberEvery - 1 ? 'number' : 'letter');
+           : (progress() % STAGE.numberEvery === STAGE.numberEvery - 1 ? 'number' : 'letter');
 
   var due = takeDue(kind);
   var target = due || chooseTarget(kind);
@@ -997,7 +1013,7 @@ function answer(val, btn){
   if(!S.practice){
     S.correct++; S.asked++;
     if(!S.missed) S.firstTry++;
-  }
+  } else S.practiceN++;
   tone([660,880]);
   /* after a miss the right tap says the letter inside THIS word — the
      teaching moment. a clean answer just hears the word, as before.  */
@@ -1011,10 +1027,21 @@ function answer(val, btn){
   updateTrophy();
   save();
 
+  var answered = S.word;
   setTimeout(function(){
-    if(S.correct >= S.goal) finish();
-    else { S.word = nextWord(); render(); sayQuestion(); }
+    /* she opened the board (or a parent the panel) during the pause: leave
+       it alone. leaveBoard/leaveParent pick the round up on the way back,
+       and if they already have, this question is no longer the live one. */
+    if(S.word !== answered || !S.locked) return;
+    var on = currentScreen();
+    if(on === 'board' || on === 'parent' || on === 'stats') return;
+    advance();
   }, 1650);
+}
+
+function advance(){
+  if(progress() >= S.goal) finish();
+  else { S.word = nextWord(); render(); sayQuestion(); }
 }
 
 function updateTrophy(){ $('tcount').textContent = albumOf(S.prizes).length; }
@@ -1025,8 +1052,8 @@ function leaveBoard(){
   if(boardFrom === 'reward'){ show('reward'); return; }
   /* the round may have ended while the board was open, or she came here from
      a question already answered — either way 'play' needs a live question  */
-  if(S.locked || !S.word){ S.word = nextWord(); render(); sayQuestion(); }
   show('play');
+  if(S.locked || !S.word) advance();
 }
 
 function openBoard(){
@@ -1070,7 +1097,7 @@ function drawStars(){
      flex:1 divides whatever width there actually is.                      */
   for(var i = 0; i < S.goal; i++){
     var d = document.createElement('div');
-    d.className = 'st' + (i < S.correct ? ' f' : '');
+    d.className = 'st' + (i < progress() ? ' f' : '');
     host.appendChild(d);
   }
 }
@@ -1131,6 +1158,9 @@ function finish(){
   S.back = {};       /* a new round gives every letter its returns back */
   var st = awardPrize();
   if(!S.practice){
+    /* reset BEFORE save: saving first stored correct = goal, and a same-day
+       relaunch handed her a prize for her first answer.                   */
+    S.correct = 0;
     S.prizes.push(st);
     S.roundBy[S.lang] = 0;
     save();
@@ -1139,7 +1169,7 @@ function finish(){
     syncUp();       /* the laptop, when served from it */
     cloudSync();    /* and the cloud, always */
   }
-  S.correct = 0;
+  if(S.practice) S.practiceN = 0; else S.correct = 0;
   $('prize').textContent = st;
   $('rtitle').textContent = nm(UI[S.lang].title);
   $('rsub').textContent   = UI[S.lang].sub;
@@ -1229,6 +1259,9 @@ function setLang(lang){
   S.roundBy[S.lang] = S.correct;
   S.lang = lang;
   S.correct = S.roundBy[lang] || 0;
+  /* a count at or past the goal is a finished round saved by an older build,
+     not progress — restoring it gave a prize for one answer              */
+  if(S.correct >= S.goal) S.correct = 0;
   save();
 }
 
@@ -1273,7 +1306,9 @@ $('syncnow').addEventListener('click', function(){
 
 $('practicebtn').addEventListener('click', function(){
   S.practice = !S.practice;
+  S.practiceN = 0;
   paintPractice();
+  drawStars();
 });
 
 Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function(b){
@@ -1418,6 +1453,17 @@ function rebuildMastery(log){
 
 function rowKey(r){ return r.t + '|' + r.k + '|' + (r.x === undefined ? '' : r.x); }
 
+function mergeRows(a, b){
+  var seen = {}, out = [];
+  a.concat(b).forEach(function(r){
+    if(!r || typeof r.t !== 'number') return;
+    var k = rowKey(r);
+    if(seen[k]) return;
+    seen[k] = 1; out.push(r);
+  });
+  return out.sort(function(x, y){ return x.t - y.t; });
+}
+
 /* Combine another device's history with this one instead of overwriting it.
    Prizes are rebuilt too: anything earned before prize logging existed is kept
    as a prefix, then every dated prize row across both devices in order.     */
@@ -1427,14 +1473,7 @@ function mergePayload(txt){
   var incoming = Array.isArray(d.log) ? d.log : [];
   if(!incoming.length) throw new Error('that payload has no history to merge');
 
-  var seen = {}, merged = [];
-  LOG.concat(incoming).forEach(function(r){
-    if(!r || typeof r.t !== 'number') return;
-    var k = rowKey(r);
-    if(seen[k]) return;
-    seen[k] = 1; merged.push(r);
-  });
-  merged.sort(function(a,b){ return a.t - b.t; });
+  var merged = mergeRows(LOG, incoming);
 
   var before = LOG.length, added = merged.length - before;
 
@@ -1538,8 +1577,9 @@ var panelFrom = 'play';
    nothing to tap.                                                         */
 function leaveParent(){
   if(panelFrom !== 'play'){ show(panelFrom); return; }
-  if(!S.word || S.locked){ S.word = nextWord(); render(); }
   show('play');
+  if(!S.word){ S.word = nextWord(); render(); }
+  else if(S.locked) advance();
 }
 
 function openParent(){
