@@ -145,7 +145,8 @@ is the single largest piece of work in this plan, and it is content, not code.
 | S2 | parent dashboard — make the data visible | **done, b17** |
 | S3 | weighted selection — the app starts adapting | **done, b25** |
 | S3b | a missed letter comes back 2 questions later; first-tap time logged | **done, b46** — guessing was free: K 61% over 28 tries with 2 buttons |
-| S4 | auto-advancement + L2, L3 | on hold — PL at 5/13 known, the 80% rule would not fire for weeks |
+| S4 | auto-advancement + L2, L3 | **L2 (3 options) done, b48**; auto-advancement still on hold |
+| S11 | research changes (7 Oct) — see §8 | **done, b48**, except letter sounds (waiting on his pick in voices.html) |
 | S5 | content: 60–80 words per language | **done, b32** — 13 PL letters / 39 words, 12 NO / 32 |
 | S6 | L4–L6 position variants | |
 | S7 | case axis | |
@@ -155,6 +156,26 @@ is the single largest piece of work in this plan, and it is content, not code.
 
 S2 and S3 should not wait. A log nothing reads is dead weight; the value only
 arrives when selection and advancement consume it.
+
+## 8 · What the research changed (7 Oct, his "do all")
+
+Two research passes (early letter learning; how Poland and Norway teach
+letters). What changed in b48, and why:
+
+| Change | Evidence |
+|---|---|
+| **Three buttons** once a letter has been seen twice (two for its first two showings; numbers keep two). Her K at 17/28 with two buttons is what guessing alone reaches 17% of the time. | GraphoGame (up to 5 options, ~80% success); Roberts 2018 (3) |
+| **First-sound rounds**, question 3 of every 5: "Co zaczyna się tak samo jak sowa?" with three pictures, or the letter shown and the picture that starts with it. Logged `k:'F'`, no Leitner box. Never in place of a missed letter that is due back. | Bus & van IJzendoorn 1999; Hulme 2012; NELP 2008 |
+| **A stuck letter rests**: its last 15 tries never reached box 4 → after 5 tries today it steps aside until tomorrow and the slot goes to the next letter. On 7 Oct Polish S had 46 tries in box 2 and K 43, while O A R P W waited, each seen once. | Sunde, Furnes & Lundetræ 2020 (faster pace helps the weakest most) |
+| **Order**: her name's letters jump the queue (read from the name on the device); A and I added to the pools for her name; Norwegian H (Polish /x/) moved last. | Larsen 2022 (age 4.3, own-name advantage); NAFO (same-sound letters first) |
+| **Picture words start with one plain sound**: no słoń, brat, pies, sko, tre, okse. Added panda, igła, indyk, and, ape, is — **check she knows the pictures**. | Treiman (clusters hide the first sound); PL softening before i |
+| **ą ę ń ó y tiles** say "ą jak w słowie dąb" — one rule with Pisz. | his call; Polish materials ("Ę w słowie gęś") |
+| The parent panel points to the **one dashboard for both apps**, `pawlo999.github.io/pisz/parent.html`. | McTigue 2020 (GraphoGame g=0.48 with an adult, −0.02 without) |
+| Not changed: the prize album does not grow (an expected reward lowers later interest). | Deci 1999; Lepper 1973 |
+
+Waiting: **letter sounds** ("es — sss — sowa"). Polish schools teach the sound first and
+the name after a year; the iPad voice says only names. `pisz/voices.html` lets him pick, per
+letter, between the voice and free recordings; Litery plays the pick once chosen.
 
 ## 7 · Where this could go wrong
 
