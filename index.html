@@ -387,7 +387,7 @@
 (function () {
 'use strict';
 
-var BUILD = 48;
+var BUILD = 49;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -447,7 +447,7 @@ var LETTER = {
   nb:{ a:'and',  b:'ball', d:'dør',  e:'egg',  f:'fisk', g:'gutt',
        h:'hus',  i:'is',   k:'katt', l:'lys',  m:'mus',  n:'nese',
        o:'ost',  p:'penn', r:'rev',  s:'sol',  t:'tog',  u:'ugle',
-       v:'vann', y:null,  'ø':null }
+       v:'vann', y:'yrke', 'ø':null }   /* yrke: his word, 7 Oct — y starts it, and the voice says y fine in 'y som i …' */
 };
 
 /* the answerable letters, in the order she meets them. activePool() below
