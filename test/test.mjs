@@ -1628,6 +1628,17 @@ console.log('\n[24] THE RESEARCH CHANGES (7 Oct)');
   a.w.close();
 }
 {
+  // Norwegian Y: his word, yrke (7 Oct)
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'nb', mode:'letters', prizes:[], day:'', restoredV:2 }, '?dev=probe');
+  await sleep(150);
+  a.click('.flag[data-lang="nb"]'); await sleep(80);
+  a.w.__probe.setWord({ kind:'letter', w:'lys', e:'💡' });
+  a.clear();
+  [...a.d.querySelectorAll('#word .cell')].find(c => c.textContent === 'Y').click(); await sleep(50);
+  ok(a.said().includes('y som i yrke'), 'A NORWEGIAN Y TILE SAYS "y som i yrke"', JSON.stringify(a.said()));
+  a.w.close();
+}
+{
   // three buttons fit a phone
   const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2 }, '');
   const css = readFileSync(APP, 'utf8');
