@@ -146,7 +146,7 @@ is the single largest piece of work in this plan, and it is content, not code.
 | S3 | weighted selection — the app starts adapting | **done, b25** |
 | S3b | a missed letter comes back 2 questions later; first-tap time logged | **done, b46** — guessing was free: K 61% over 28 tries with 2 buttons |
 | S4 | auto-advancement + L2, L3 | **L2 (3 options) done, b48**; auto-advancement still on hold |
-| S11 | research changes (7 Oct) — see §8 | **done, b48**; letter sounds b50 |
+| S11 | research changes (7 Oct) — see §8 | **done, b48**; letter sounds b50, NB borrows PL b51 |
 | S5 | content: 60–80 words per language | **done, b32** — 13 PL letters / 39 words, 12 NO / 32 |
 | S6 | L4–L6 position variants | |
 | S7 | case axis | |
@@ -182,6 +182,10 @@ and the letter-shown first-sound round. Stored on the Pisz sync service under th
 key, kept on the device for offline (`litery.sounds.index`, cache `sounds-v1`). Not recorded,
 not loaded within 0.7 s, or audio not running: the old phrase from the voice, never "jak sowa"
 alone. The code is a copy of `pisz/sounds.js`, inline because this app is one file.
+**b51**: he recorded the 31 Polish sounds and will not record Norwegian, so a Norwegian
+consonant that sounds as the Polish one does (b d f g j k l m n p s t, v = Polish w) plays the
+Polish recording until a Norwegian one exists. Vowels keep the voice (a Norwegian vowel's name
+is its sound); h (Polish /x/) and r (his is rolled) keep their names.
 
 ## 7 · Where this could go wrong
 
