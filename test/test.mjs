@@ -15,15 +15,17 @@ async function probe(a, i) {
   a.clickBtn(i);
   await sleep(600);
   const b = a.d.querySelectorAll('#opts .opt')[i];
-  return { dead: b.classList.contains('dead'), good: b.classList.contains('good'), said: a.said() };
+  return { dead: b.classList.contains('dead'), good: b.classList.contains('good'), said: a.said(), text: b.textContent };
 }
 // keep answering until we manage to hit a WRONG one, then hand it back
 async function findWrong(a, tries = 8) {
   for (let n = 0; n < tries; n++) {
-    for (const i of [0, 1]) {
+    for (const i of [...a.btns().keys()]) {
       if (a.screen() !== 'play') return null;   // round ended; nothing to probe
       const r = await probe(a, i);
-      if (r.dead) return r;
+      /* a first-sound round (b48) has pictures for buttons, and a wrong one
+         says the word it shows: not the phrase these checks are about     */
+      if (r.dead && /^[\p{L}\d]+$/u.test(r.text)) return r;
       if (r.good) { await sleep(1800); break; }   // advanced to a new question
     }
   }
@@ -1656,7 +1658,7 @@ console.log('\n[25] LETTER SOUNDS A PARENT RECORDED (7 Oct)');
     w.fetch = url => {
       url = String(url); w.__asked.push(url);
       if (url === 'https://pisz-sync.pawlo999.workers.dev/a/' + SKEY)
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(opt.index || { pl: { o: 1, s: 2, k: 3, t: 4, m: 5, b: 6 }, nb: { k: 7 } }) });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(opt.index || { pl: { o: 1, s: 2, k: 3, t: 4, m: 5, b: 6, h: 8, w: 9 }, nb: { k: 7 } }) });
       const m = url.match(/\/a\/k+\/(pl|nb)\/([^?]+)\?v=/);
       if (m) {
         if (opt.broken) return Promise.resolve({ ok: false, status: 500 });
@@ -1684,11 +1686,11 @@ console.log('\n[25] LETTER SOUNDS A PARENT RECORDED (7 Oct)');
   ok(a.w.__clips.join() === 'pl:o' && !a.said().length, 'a recorded O tile plays the recording first, and the voice waits', JSON.stringify([a.w.__clips, a.said()]));
   await sleep(500);
   ok(a.said().join('|') === ' jak oko', 'then the voice says "jak oko" — never "o jak oko" as well', JSON.stringify(a.said()));
-  a.clear(); tile(a, 'W'); await sleep(60);
-  ok(a.said().join('|') === 'w jak woda' && a.w.__clips.length === 1, 'a letter with no recording (W) is said as before', JSON.stringify(a.said()));
+  a.clear(); tile(a, 'A'); await sleep(60);
+  ok(a.said().join('|') === 'a jak auto' && a.w.__clips.length === 1, 'a letter with no recording (A) is said as before', JSON.stringify(a.said()));
 
-  a.clear(); const stops = a.w.__stops; tile(a, 'O'); await sleep(40); tile(a, 'W'); await sleep(600);
-  ok(a.w.__stops > stops && a.said().join('|') === 'w jak woda', 'a second tap stops the recording and drops its "jak oko"', JSON.stringify(a.said()));
+  a.clear(); const stops = a.w.__stops; tile(a, 'O'); await sleep(40); tile(a, 'A'); await sleep(600);
+  ok(a.w.__stops > stops && a.said().join('|') === 'a jak auto', 'a second tap stops the recording and drops its "jak oko"', JSON.stringify(a.said()));
 
   // the miss and the right answer after it: both are recordings
   a.w.__probe.setWord({ kind:'letter', w:'sowa', e:'🦉' });
@@ -1705,7 +1707,7 @@ console.log('\n[25] LETTER SOUNDS A PARENT RECORDED (7 Oct)');
 
   // the parent panel
   a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown')); await sleep(1400);
-  ok(a.d.getElementById('sndv').textContent === '6 Polish, 1 Norwegian recorded', 'the parent panel counts the recordings', a.d.getElementById('sndv').textContent);
+  ok(a.d.getElementById('sndv').textContent === '8 Polish, 1 Norwegian recorded, 5 more Norwegian from Polish', 'the parent panel counts the recordings, and the borrowed ones', a.d.getElementById('sndv').textContent);
   ok(a.d.getElementById('recbtn').getAttribute('href') === '../pisz/record.html', 'and links to the one recording page, in Pisz');
   ok(a.w.localStorage.getItem('litery.sounds.index') !== null, 'the list of recordings is kept for offline, under a litery.* key');
   a.w.close();
@@ -1716,7 +1718,16 @@ console.log('\n[25] LETTER SOUNDS A PARENT RECORDED (7 Oct)');
   a.click('.flag[data-lang="nb"]'); await sleep(80);
   a.w.__probe.setWord({ kind:'letter', w:'katt', e:'🐱' });
   a.clear(); a.w.__clips.length = 0; a.w.__probe.sayLetter('k'); await sleep(600);
-  ok(a.w.__clips.join() === 'nb:k' && a.said().join('|') === ' som i katt', 'NB: "[k] som i katt"', JSON.stringify([a.w.__clips, a.said()]));
+  ok(a.w.__clips.join() === 'nb:k' && a.said().join('|') === ' som i katt', 'NB: "[k] som i katt" — its own K, though a Polish K exists too', JSON.stringify([a.w.__clips, a.said()]));
+  const nbSay = async ch => { a.clear(); a.w.__clips.length = 0; a.w.__probe.sayLetter(ch); await sleep(600); return [a.w.__clips.join(), a.said().join('|')]; };
+  let q = await nbSay('s');
+  ok(q[0] === 'pl:s' && q[1] === ' som i sol', 'NB S with no Norwegian recording plays the Polish S: "[s] som i sol"', JSON.stringify(q));
+  q = await nbSay('v');
+  ok(q[0] === 'pl:w' && q[1] === ' som i vann', 'NB V plays the Polish W, which is the v sound', JSON.stringify(q));
+  q = await nbSay('h');
+  ok(q[0] === '' && q[1] === 'h som i hus', 'NB H is said as before: the Polish H is another sound', JSON.stringify(q));
+  q = await nbSay('o');
+  ok(q[0] === '' && q[1] === 'o som i ost', 'NB vowels are said as before, though a Polish O exists: their name is their sound', JSON.stringify(q));
   a.w.close();
 
   // a recording that will not load: the old phrase, after at most 0.7 s

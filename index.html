@@ -392,7 +392,7 @@
 (function () {
 'use strict';
 
-var BUILD = 50;
+var BUILD = 51;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -790,9 +790,22 @@ function audio(){
    because this app is one file and must not break when Pisz changes.     */
 var SND = { base:'https://pisz-sync.pawlo999.workers.dev/a/', cache:'sounds-v1', store:'litery.sounds.index',
             same:{ pl:{ 'ó':'u' }, nb:{ c:'k', z:'s', w:'v' } },   /* letters sharing another's sound */
+            /* Norwegian consonants that sound as the Polish ones do play the
+               Polish recording until a Norwegian one exists (his call, 7 Oct).
+               Not vowels (the voice says their name, which is their sound),
+               not h (Polish /x/), not r (his is rolled); NB v is Polish w.  */
+            borrow:{ nb:{ pl:{ b:'b', d:'d', f:'f', g:'g', j:'j', k:'k', l:'l', m:'m', n:'n', p:'p', s:'s', t:'t', v:'w' } } },
             index:{}, bufs:{}, gen:0, src:null, t:0 };
 function sndClip(c){ c = String(c).toLowerCase(); return (SND.same[S.lang] && SND.same[S.lang][c]) || c; }
-function sndHas(c){ var k = sndClip(c); return !!(S.syncKey && SND.index[S.lang] && SND.index[S.lang][k]); }
+/* which recording a letter plays: its own, else the one it borrows */
+function sndSource(c){
+  var k = sndClip(c), b = SND.borrow[S.lang] || {};
+  if(!S.syncKey) return null;
+  if(SND.index[S.lang] && SND.index[S.lang][k]) return { lang:S.lang, k:k };
+  for(var from in b){ var o = b[from][k]; if(o && SND.index[from] && SND.index[from][o]) return { lang:from, k:o }; }
+  return null;
+}
+function sndHas(c){ return !!sndSource(c); }
 function sndUrl(lang, k){
   return SND.base + encodeURIComponent(S.syncKey) + '/' + lang + '/' + encodeURIComponent(k) + '?v=' + (SND.index[lang] && SND.index[lang][k]);
 }
@@ -811,7 +824,9 @@ function sndBytes(url){
     .then(function(hit){ return hit ? hit.arrayBuffer() : net(); }).catch(net);
 }
 function sndLoad(c){
-  var url = sndUrl(S.lang, sndClip(c));
+  var src = sndSource(c);
+  if(!src) return Promise.reject(new Error('not recorded'));
+  var url = sndUrl(src.lang, src.k);
   if(SND.bufs[url]) return Promise.resolve(SND.bufs[url]);
   var a = audio();
   if(!a) return Promise.reject(new Error('no audio'));
@@ -1518,9 +1533,10 @@ function paintPractice(){
 }
 function paintSync(){
   $('syncstat').textContent = S.syncMsg || (S.syncKey ? 'key set' : 'not set');
-  var n = function(l){ return Object.keys(SND.index[l] || {}).length; };
+  var n = function(l){ return Object.keys(SND.index[l] || {}).length; }, lent = 0, b = SND.borrow.nb.pl;
+  Object.keys(b).forEach(function(c){ if(!(SND.index.nb && SND.index.nb[c]) && SND.index.pl && SND.index.pl[b[c]]) lent++; });
   $('sndv').textContent = !S.syncKey ? 'needs the sync key above'
-    : (n('pl') || n('nb')) ? n('pl') + ' Polish, ' + n('nb') + ' Norwegian recorded'
+    : (n('pl') || n('nb')) ? n('pl') + ' Polish, ' + n('nb') + ' Norwegian recorded' + (lent ? ', ' + lent + ' more Norwegian from Polish' : '')
     : 'none yet — the voice says the letter names';
 }
 
