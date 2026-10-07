@@ -363,6 +363,11 @@
       <b>pawlo999.github.io/pisz/parent.html</b></label>
   </div>
   <div class="prow">
+    <label>Letter sounds in your voice — the game plays your "s", then says "jak sowa".
+      Recorded once, for Litery and Pisz, with the same sync key: <b id="sndv">—</b></label>
+    <a class="pbtn" id="recbtn" href="../pisz/record.html" style="display:inline-block;text-decoration:none">Record letter sounds →</a>
+  </div>
+  <div class="prow">
     <label>Test run — play without touching her stats, prizes or progress</label>
     <button class="pbtn" id="practicebtn">Test run: OFF</button>
   </div>
@@ -387,7 +392,7 @@
 (function () {
 'use strict';
 
-var BUILD = 49;
+var BUILD = 50;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -741,6 +746,7 @@ if('speechSynthesis' in window){
 
 /* everything handed to the speaker is lowercase — iOS announces capitals otherwise */
 function say(text, rate){
+  sndStop();
   if(!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   var u = new SpeechSynthesisUtterance(String(text).toLowerCase());
@@ -767,6 +773,90 @@ function tone(freqs){
     });
   }catch(e){}
 }
+function audio(){
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    /* iOS leaves it "interrupted" after a call or the screen locking */
+    if(AC.state !== 'running' && AC.state !== 'closed'){ var p = AC.resume(); if(p && p.catch) p.catch(function(){}); }
+  }catch(e){ AC = null; }
+  return AC;
+}
+
+/* ============ letter sounds a parent recorded ======================== */
+/* pisz/record.html keeps one short recording per letter on the Pisz sync
+   service, under the family key. A recorded letter is heard as that sound
+   and then "jak sowa" from the voice, which can only say a letter's name
+   ("gie"), never its sound. The same logic as pisz/sounds.js, copied here
+   because this app is one file and must not break when Pisz changes.     */
+var SND = { base:'https://pisz-sync.pawlo999.workers.dev/a/', cache:'sounds-v1', store:'litery.sounds.index',
+            same:{ pl:{ 'ó':'u' }, nb:{ c:'k', z:'s', w:'v' } },   /* letters sharing another's sound */
+            index:{}, bufs:{}, gen:0, src:null, t:0 };
+function sndClip(c){ c = String(c).toLowerCase(); return (SND.same[S.lang] && SND.same[S.lang][c]) || c; }
+function sndHas(c){ var k = sndClip(c); return !!(S.syncKey && SND.index[S.lang] && SND.index[S.lang][k]); }
+function sndUrl(lang, k){
+  return SND.base + encodeURIComponent(S.syncKey) + '/' + lang + '/' + encodeURIComponent(k) + '?v=' + (SND.index[lang] && SND.index[lang][k]);
+}
+/* this device's copy first, so they play offline; the network fills it */
+function sndBytes(url){
+  function net(){
+    return fetch(url).then(function(r){
+      if(!r.ok) throw new Error('no clip');
+      var copy = r.clone();
+      try{ if(window.caches) caches.open(SND.cache).then(function(cc){ return cc.put(url, copy); }).catch(function(){}); }catch(e){}
+      return r.arrayBuffer();
+    });
+  }
+  if(!window.caches) return net();
+  return caches.open(SND.cache).then(function(cc){ return cc.match(url); })
+    .then(function(hit){ return hit ? hit.arrayBuffer() : net(); }).catch(net);
+}
+function sndLoad(c){
+  var url = sndUrl(S.lang, sndClip(c));
+  if(SND.bufs[url]) return Promise.resolve(SND.bufs[url]);
+  var a = audio();
+  if(!a) return Promise.reject(new Error('no audio'));
+  /* inside a promise: a fetch that throws must not take the tap with it */
+  return Promise.resolve().then(function(){ return sndBytes(url); }).then(function(ab){
+    return new Promise(function(res, rej){ var p = a.decodeAudioData(ab, res, rej); if(p && p.then) p.then(res, rej); });
+  }).then(function(b){ SND.bufs[url] = b; return b; });
+}
+function sndRefresh(){
+  try{ SND.index = JSON.parse(localStorage.getItem(SND.store) || '{}') || {}; }catch(e){ SND.index = {}; }
+  if(!S.syncKey || !window.fetch) return;
+  Promise.resolve().then(function(){ return fetch(SND.base + encodeURIComponent(S.syncKey)); })
+  .then(function(r){ return r.json(); }).then(function(ix){
+    if(!ix || typeof ix !== 'object' || ix.error) return;
+    SND.index = ix;
+    try{ localStorage.setItem(SND.store, JSON.stringify(ix)); }catch(e){}
+    Object.keys(ix).forEach(function(lang){
+      Object.keys(ix[lang] || {}).forEach(function(k){ sndBytes(sndUrl(lang, k)).catch(function(){}); });
+    });
+  }).catch(function(){});
+}
+function sndStop(){
+  SND.gen++; clearTimeout(SND.t);
+  if(SND.src){ try{ SND.src.stop(); }catch(e){} SND.src = null; }
+}
+/* "[s] jak sowa". Not recorded, not loaded within 0.7 s, or the audio off:
+   the old phrase from the voice — never "jak sowa" on its own            */
+function sayWith(c, rest, plain, rate){
+  if(!rest || !sndHas(c)){ if(plain) say(plain, rate); return; }
+  try{ speechSynthesis.cancel(); }catch(e){}
+  sndStop();
+  var gen = SND.gen, done = false;
+  function fall(){ if(done || gen !== SND.gen) return; done = true; if(plain) say(plain, rate); }
+  SND.t = setTimeout(fall, 700);
+  sndLoad(c).then(function(b){
+    if(done || gen !== SND.gen) return;
+    var a = audio();
+    if(!a || a.state !== 'running'){ fall(); return; }
+    done = true; clearTimeout(SND.t);
+    var src = a.createBufferSource(); src.buffer = b; src.connect(a.destination); src.start(); SND.src = src;
+    SND.t = setTimeout(function(){ if(gen !== SND.gen) return; SND.src = null; say(rest, rate); },
+                       Math.round(b.duration * 1000) + 120);
+  }, fall);
+}
+
 function unlock(){
   if(unlocked) return; unlocked = true;
   try{ AC = AC || new (window.AudioContext||window.webkitAudioContext)(); AC.resume(); }catch(e){}
@@ -1000,10 +1090,11 @@ function letterRate(){ return Math.max(0.3, S.rate * 0.8); }
 function sayLetter(ch){
   var c = String(ch).toLowerCase();
   var ex = LETTER[S.lang] && LETTER[S.lang][c];
-  if(ex) say(c + LINK[S.lang] + ex, letterRate());
+  if(ex) sayWith(c, LINK[S.lang] + ex, c + LINK[S.lang] + ex, letterRate());
   /* ą ę ń ó y: one rule with Pisz (his call, 7 Oct) — the word it sits in, unchanged */
-  else if(S.word.kind === 'letter' && S.lang === 'pl') say(c + ' jak w słowie ' + S.word.w, letterRate());
-  else if(S.word.kind === 'letter') say(S.word.w, letterRate());   /* NB y, ø */
+  else if(S.word.kind === 'letter' && S.lang === 'pl') sayWith(c, ' jak w słowie ' + S.word.w, c + ' jak w słowie ' + S.word.w, letterRate());
+  /* NB ø: the voice cannot say it, so only the word — or its recording "som i …" */
+  else if(S.word.kind === 'letter') sayWith(c, LINK[S.lang] + S.word.w, S.word.w, letterRate());
 }
 
 function sayWrong(val){
@@ -1147,13 +1238,14 @@ function answer(val, btn){
   /* after a miss the right tap says the letter inside THIS word — the
      teaching moment. a clean answer just hears the word, as before.  */
   if(S.missed && S.word.kind === 'letter'){
-    var said = S.answer + LINK[S.lang] + S.word.w;
-    setTimeout(function(){ say(said, letterRate()); }, 260);
+    var said = S.answer + LINK[S.lang] + S.word.w, ans = S.answer, rest = LINK[S.lang] + S.word.w;
+    setTimeout(function(){ sayWith(ans, rest, said, letterRate()); }, 260);
   }
   else if(S.word.kind === 'first'){
     /* the two words side by side, or the letter inside its word: the same start, heard */
     var pair = S.word.variant === 'a' ? S.word.w + ', ' + S.word.cue.w : S.word.t + LINK[S.lang] + S.word.w;
-    setTimeout(function(){ say(pair, letterRate()); }, 260);
+    var letterOf = S.word.variant === 'a' ? '' : S.word.t, restOf = LINK[S.lang] + S.word.w;
+    setTimeout(function(){ if(letterOf) sayWith(letterOf, restOf, pair, letterRate()); else say(pair, letterRate()); }, 260);
   }
   else setTimeout(sayQuestion, 260);
   if(S.missed && S.word.kind === 'letter') comeBack(S.answer);
@@ -1322,6 +1414,7 @@ function finish(){
 /* ============ wiring ================================================ */
 load();
 loadLog();
+sndRefresh();
 setTimeout(syncUp, 1500);   /* the laptop, when served from it */
 setTimeout(cloudSync, 1800);
 $('build').textContent = 'b' + BUILD;
@@ -1423,12 +1516,19 @@ function paintPractice(){
   $('practicebtn').className = 'pbtn' + (S.practice ? ' warn' : '');
   $('practiceband').style.display = S.practice ? 'block' : 'none';
 }
-function paintSync(){ $('syncstat').textContent = S.syncMsg || (S.syncKey ? 'key set' : 'not set'); }
+function paintSync(){
+  $('syncstat').textContent = S.syncMsg || (S.syncKey ? 'key set' : 'not set');
+  var n = function(l){ return Object.keys(SND.index[l] || {}).length; };
+  $('sndv').textContent = !S.syncKey ? 'needs the sync key above'
+    : (n('pl') || n('nb')) ? n('pl') + ' Polish, ' + n('nb') + ' Norwegian recorded'
+    : 'none yet — the voice says the letter names';
+}
 
 $('syncsave').addEventListener('click', function(){
   S.syncKey = ($('synckey').value || '').trim();
   save();
   cloudSync();
+  sndRefresh();
   $('syncstat').textContent = S.syncKey ? 'key saved, syncing…' : 'key cleared';
   setTimeout(paintSync, 2500);
 });
