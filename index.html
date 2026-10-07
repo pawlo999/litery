@@ -127,13 +127,19 @@
   .cell.gap{background:rgba(255,255,255,.32);box-shadow:inset 0 0 0 4px var(--main);}
   .cell.gap.in{background:var(--good);color:#fff;box-shadow:0 5px 0 var(--good-dark);}
 
-  .opts{display:flex;gap:26px;justify-content:center;}
-  .opt{width:clamp(110px,16.5vh,142px);height:clamp(110px,16.5vh,142px);border-radius:30px;
+  .opts{display:flex;gap:clamp(12px,3.4vw,26px);justify-content:center;}
+  /* three buttons now: the width follows the screen too, or a phone loses one */
+  .opt{width:clamp(84px,min(16.5vh,27vw),142px);height:clamp(84px,min(16.5vh,27vw),142px);border-radius:30px;
        background:var(--main);color:var(--on-main);font-size:clamp(46px,7.8vh,62px);
        font-weight:800;border:0;padding:0;box-shadow:0 8px 0 var(--main-dark);}
   .opt:active{transform:translateY(6px);box-shadow:0 2px 0 var(--main-dark);}
   .opt.good{background:var(--good);box-shadow:0 8px 0 var(--good-dark);}
   .opt.dead{background:var(--dead);box-shadow:0 8px 0 rgba(0,0,0,.10);opacity:.55;}
+  /* first-sound rounds: the answers are pictures */
+  .opt.picopt{background:var(--card);box-shadow:0 8px 0 var(--line);font-size:clamp(46px,min(8vh,13vw),72px);}
+  .opt.picopt.good{background:var(--good);box-shadow:0 8px 0 var(--good-dark);}
+  .opt.picopt.dead{background:var(--dead);box-shadow:0 8px 0 rgba(0,0,0,.10);}
+  .pic.bigletter{font-size:clamp(110px,22vh,190px);font-weight:800;color:var(--ink);padding:0 44px;}
   .shake{animation:sh .4s;}
   @keyframes sh{0%,100%{transform:translateX(0)}20%{transform:translateX(-11px)}
                 40%{transform:translateX(11px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
@@ -353,6 +359,10 @@
     <label style="margin-top:8px">Status: <b id="syncstat">—</b></label>
   </div>
   <div class="prow">
+    <label>On your phone: one page for Litery and Pisz, with the same sync key —
+      <b>pawlo999.github.io/pisz/parent.html</b></label>
+  </div>
+  <div class="prow">
     <label>Test run — play without touching her stats, prizes or progress</label>
     <button class="pbtn" id="practicebtn">Test run: OFF</button>
   </div>
@@ -377,7 +387,7 @@
 (function () {
 'use strict';
 
-var BUILD = 47;
+var BUILD = 48;
 /* The sync service. The URL is public; the key the parent pastes in is the
    only credential, because there is no login for a four-year-old.        */
 var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-right and in the parent panel */
@@ -386,10 +396,13 @@ var SYNC_URL = 'https://litery-sync.pawlo999.workers.dev';   /* visible bottom-r
 /* Uppercase is what she SEES. The lowercase `w` is what the VOICE gets. */
 
 var WORDS = {
-  /* stage 1 rule: 3-4 letters, first letter missing. nothing longer. */
+  /* stage 1 rule: 3-5 letters, first letter missing.
+     Every word starts with ONE plain sound: a cluster (sł-, br-, sk-, tr-)
+     or a softened consonant (pi-) makes the first sound hard to hear at
+     four (research, 7 Oct) — so no słoń, brat, pies, sko, tre, okse.      */
   pl: [
-    {w:'ser', e:'🧀'}, {w:'sok', e:'🧃'}, {w:'sowa',e:'🦉'}, {w:'słoń',e:'🐘'}, {w:'sól', e:'🧂'},
-    {w:'but', e:'👟'}, {w:'byk', e:'🐂'}, {w:'brat',e:'👦'},
+    {w:'ser', e:'🧀'}, {w:'sok', e:'🧃'}, {w:'sowa',e:'🦉'}, {w:'sól', e:'🧂'},
+    {w:'but', e:'👟'}, {w:'byk', e:'🐂'},
     {w:'tort',e:'🎂'}, {w:'tata',e:'👨'}, {w:'tir', e:'🚛'},
     {w:'mama',e:'👩'}, {w:'miś', e:'🧸'}, {w:'mysz',e:'🐭'},
     {w:'kot', e:'🐱'}, {w:'kura',e:'🐔'}, {w:'koza',e:'🐐'}, {w:'koń', e:'🐴'},
@@ -399,19 +412,21 @@ var WORDS = {
     {w:'oko', e:'👁️'}, {w:'owca',e:'🐑'}, {w:'osa', e:'🐝'},
     {w:'auto',e:'🚗'},
     {w:'ryba',e:'🐟'}, {w:'ręka',e:'✋'}, {w:'róża',e:'🌹'},
-    {w:'pies',e:'🐶'}, {w:'paw', e:'🦚'},
+    {w:'panda',e:'🐼'}, {w:'paw', e:'🦚'},
+    {w:'igła',e:'🪡'}, {w:'indyk',e:'🦃'},
     {w:'woda',e:'💧'}, {w:'wilk',e:'🐺'}, {w:'waga',e:'⚖️'}
   ],
   nb: [
-    {w:'sol', e:'☀️'}, {w:'sko', e:'👟'}, {w:'sau', e:'🐑'}, {w:'sokk',e:'🧦'},
+    {w:'sol', e:'☀️'}, {w:'sau', e:'🐑'}, {w:'sokk',e:'🧦'},
     {w:'bil', e:'🚗'}, {w:'ball',e:'⚽'}, {w:'bok', e:'📕'}, {w:'bad', e:'🛁'},
-    {w:'tog', e:'🚆'}, {w:'tann',e:'🦷'}, {w:'tre', e:'🌳'},
+    {w:'tog', e:'🚆'}, {w:'tann',e:'🦷'},
     {w:'egg', e:'🥚'},
     {w:'mus', e:'🐭'}, {w:'mor', e:'👩'}, {w:'mat', e:'🍽️'},
     {w:'katt',e:'🐱'}, {w:'kake',e:'🍰'}, {w:'kopp',e:'☕'},
     {w:'lys', e:'💡'}, {w:'løve',e:'🦁'},
     {w:'nese',e:'👃'}, {w:'natt',e:'🌙'},
-    {w:'ost', e:'🧀'}, {w:'okse',e:'🐂'},
+    {w:'ost', e:'🧀'},
+    {w:'and', e:'🦆'}, {w:'ape', e:'🐒'}, {w:'is', e:'🍦'},
     {w:'hus', e:'🏠'}, {w:'hest',e:'🐴'}, {w:'hund',e:'🐶'},
     {w:'fisk',e:'🐟'}, {w:'fugl',e:'🐦'}, {w:'fot', e:'🦶'},
     {w:'rev', e:'🦊'}, {w:'rose',e:'🌹'}
@@ -420,12 +435,13 @@ var WORDS = {
 
 var LINK = { pl:' jak ', nb:' som i ' };
 
-/* a word starting with each letter, for "s jak słoń". Polish ń, ó and y
-   cannot begin a word, so those tiles speak the word they sit in instead. */
+/* a word starting with each letter, for "s jak sowa". Polish ą ę ń ó y
+   cannot begin a word: those tiles say "ą jak w słowie dąb" — the word
+   they sit in, never a declined form ("w dębie" loses the ą).            */
 var LETTER = {
-  pl:{ a:'auto', b:'but',  c:'cebula', d:'dom',  e:'ekran', g:'gwiazda',
+  pl:{ a:'auto', b:'but',  c:'cebula', d:'dom',  e:'ekran', g:'gęś',
        i:'igła', k:'kot',  l:'lody',   m:'mama', n:'nos',   o:'oko',
-       p:'pies', r:'ryba', s:'słoń',   t:'tort', u:'ucho',  w:'woda',
+       p:'paw',  r:'ryba', s:'sowa',   t:'tort', u:'ucho',  w:'woda',
        y:null,  z:'zebra', 'ł':'łódka', 'ś':'śnieg', 'ż':'żaba',
        'ą':null, 'ę':null, 'ń':null, 'ó':null },
   nb:{ a:'and',  b:'ball', d:'dør',  e:'egg',  f:'fisk', g:'gutt',
@@ -437,9 +453,13 @@ var LETTER = {
 /* the answerable letters, in the order she meets them. activePool() below
    only exposes the ones she owns plus three she is learning, so growing
    this list does not flood her with unknowns in a single session.        */
+/* Order (research, 7 Oct): her name's letters jump the queue (activePool
+   reads the name on the device), then letters that sound the same in Polish
+   and Norwegian, and the ones that sound different in the two — H is /x/ in
+   Polish — come last. A and I are here because they are in her name.      */
 var POOL = {
-  pl: ['s','b','t','m','k','l','d','n','o','a','r','p','w'],
-  nb: ['s','b','t','e','m','k','l','n','o','h','f','r']
+  pl: ['s','b','t','m','k','l','d','n','o','a','r','p','w','i'],
+  nb: ['s','b','t','e','m','k','l','n','o','f','r','a','i','h']
 };
 
 var SAY = {
@@ -449,9 +469,11 @@ var SAY = {
 function nm(str){ return String(str).split('%s').join(S.name || ''); }
 var UI = {
   pl:{ tap:'dotknij obrazka', again:'Jeszcze raz', title:'Brawo %s!', sub:'Masz nagrodę!',
+       firstA:'Co zaczyna się tak samo jak %w?', firstB:'Który obrazek zaczyna się na tę literkę?',
        board:'Twoje nagrody', back:'Graj dalej', none:'Jeszcze nie masz nagród',
        anywhere:'dotknij gdziekolwiek' },
   nb:{ tap:'trykk på bildet', again:'En gang til', title:'Bra jobba %s!', sub:'Du fikk en premie!',
+       firstA:'Hva begynner med samme lyd som %w?', firstB:'Hvilket bilde begynner med denne bokstaven?',
        board:'Premiene dine', back:'Spill videre', none:'Ingen premier ennå',
        anywhere:'trykk hvor som helst' }
 };
@@ -507,7 +529,11 @@ function theme(c){
 }
 
 /* stage 1 only in this build. `upper` is per stage, so a later stage flips it. */
-var STAGE = { id:1, missing:'first', options:2, upper:true,
+var STAGE = { id:1, missing:'first', options:3, upper:true,
+               newTwo:2,          /* a letter's first showings have 2 buttons, then 3 */
+               firstEvery:5,      /* a first-sound round, one question in five */
+               stuckAfter:15,     /* 15 tries never reaching box 4 = stuck ...         */
+               restAfter:5,       /* ... and after 5 of them today it rests until tomorrow */
                maxCount:5,        /* how big the numbers get  */
                numberEvery:4,     /* how often one comes up   */
                learnAtOnce:3,     /* letters below box 4 in play at a time */
@@ -577,8 +603,16 @@ function saveLog(){
    f=time to her FIRST tap  b=1 when this was a missed letter coming back  */
 function record(target, distractor, wrongTaps, ms){
   if(S.practice) return;                 /* parent test runs never count */
+  /* a first-sound round: its own row, and no Leitner box — it trains
+     hearing, not this letter's shape                                    */
+  if(S.word.kind === 'first'){
+    LOG.push({ t:Date.now(), l:S.lang, k:'F', s:STAGE.id, x:S.word.t, v:S.word.variant,
+               d:String(distractor), o:S.optionsN, w:wrongTaps, ms:ms, f:S.firstTap || ms });
+    saveLog();
+    return;
+  }
   LOG.push({ t:Date.now(), l:S.lang, k:S.word.kind === 'number' ? 'N' : 'L',
-             s:STAGE.id, x:String(target), d:String(distractor), o:STAGE.options,
+             s:STAGE.id, x:String(target), d:String(distractor), o:S.optionsN || STAGE.options,
              w:wrongTaps, ms:ms, h:S.hearPic, c:S.hearTile,
              f:S.firstTap || ms, b:S.word.back ? 1 : 0 });
 
@@ -777,16 +811,44 @@ function targetsFor(kind){
    Capping letters she had merely MET let each new one open the next slot
    on its first appearance — on 23 Sep all 13 Polish letters arrived in
    five minutes and first-try accuracy fell to chance.                     */
+/* A stuck letter steps aside for the rest of the day. On 7 Oct Polish S had
+   46 tries and sat in box 2, K 43 tries in box 3 — and the three learning
+   slots held them while O A R P W waited behind, each seen once. Stuck =
+   its last 15 tries never reached box 4; it rests after 5 tries today and
+   is back tomorrow. Derived from the log, so it is the same on every device. */
+function isResting(t){
+  var rows = LOG.filter(function(r){ return r && r.l === S.lang && r.k === 'L' && r.x === t; })
+                .sort(function(a, b){ return a.t - b.t; });
+  if(rows.length < STAGE.stuckAfter) return false;
+  var day = dayKey(Date.now());
+  if(rows.filter(function(r){ return dayKey(r.t) === day; }).length < STAGE.restAfter) return false;
+  var box = 1, best = 0, from = rows.length - STAGE.stuckAfter;
+  rows.forEach(function(r, i){
+    box = r.w ? 1 : Math.min(5, box + 1);
+    if(i >= from) best = Math.max(best, box);
+  });
+  return best < 4;
+}
+
 function activePool(kind){
   var all = targetsFor(kind);
   if(kind === 'number') return all;
+  var name = String(S.name || '').toLowerCase();
+  function rank(t){ return (name.indexOf(t) >= 0 ? 0 : 100) + all.indexOf(t); }
   var known = [], learning = [], unseen = [];
   all.forEach(function(t){
     var m = MASTERY[mkey(kind, t)];
     (!m ? unseen : m.box >= 4 ? known : learning).push(t);
   });
-  var open = Math.max(0, STAGE.learnAtOnce - learning.length);
-  return known.concat(learning.slice(0, STAGE.learnAtOnce), unseen.slice(0, open));
+  var awake = learning.filter(function(t){ return !isResting(t); });
+  var resting = learning.filter(function(t){ return awake.indexOf(t) < 0; });
+  awake.sort(function(a, b){ return rank(a) - rank(b); });
+  unseen.sort(function(a, b){ return rank(a) - rank(b); });
+  var take = awake.slice(0, STAGE.learnAtOnce);
+  take = take.concat(unseen.slice(0, Math.max(0, STAGE.learnAtOnce - take.length)));
+  /* everything she is learning is resting and nothing is new: they come back */
+  if(!take.length) take = resting.slice(0, STAGE.learnAtOnce);
+  return known.concat(take);
 }
 
 /* weight = 6 - box, so a letter she keeps missing (box 1) comes up five times
@@ -858,10 +920,42 @@ function takeDue(kind){
    prize screen without moving her real round.                            */
 function progress(){ return S.practice ? S.practiceN : S.correct; }
 
+/* "Which starts like sowa?" — hearing the first sound, with pictures and no
+   letters (a), or the letter shown and the picture that starts with it (b).
+   Letters together with this kind of listening beat either alone (Bus &
+   van IJzendoorn 1999; Hulme 2012). Logged as k:'F'; mastery ignores it.  */
+function firstSound(){
+  var mine = activePool('letter').filter(function(t){
+    return WORDS[S.lang].some(function(x){ return x.w.charAt(0) === t; });
+  });
+  if(mine.length < 2) return null;
+  S.fsN = (S.fsN || 0) + 1;
+  var t = mine[(Math.random() * mine.length) | 0];
+  var words = WORDS[S.lang].filter(function(x){ return x.w.charAt(0) === t; });
+  var variant = S.fsN % 2 && words.length >= 2 ? 'a' : 'b';
+  shuffle(words);
+  var cue = variant === 'a' ? words[0] : null;
+  var right = variant === 'a' ? words[1] : words[0];
+  var used = {}; used[t] = 1;
+  var others = shuffle(WORDS[S.lang].filter(function(x){ return x.w.charAt(0) !== t; })).filter(function(x){
+    var c = x.w.charAt(0); if(used[c]) return false; used[c] = 1; return true;
+  }).slice(0, 2);
+  if(others.length < 2) return null;
+  return { kind:'first', variant:variant, t:t, cue:cue, w:right.w, e:right.e,
+           options:shuffle([right].concat(others)) };
+}
+
 function nextWord(){
   var kind = S.mode === 'letters' ? 'letter'
            : S.mode === 'numbers' ? 'number'
            : (progress() % STAGE.numberEvery === STAGE.numberEvery - 1 ? 'number' : 'letter');
+  /* never in place of a missed letter that is due back now: its return two
+     questions later is the spacing that teaches                          */
+  var dueNow = S.due.some(function(d){ return d.lang === S.lang && d.left <= 1; });
+  if(kind === 'letter' && !dueNow && progress() % STAGE.firstEvery === 2){
+    var fs = firstSound();
+    if(fs) return fs;
+  }
 
   var due = takeDue(kind);
   var target = due || chooseTarget(kind);
@@ -890,6 +984,9 @@ function nextWord(){
 /* what the picture says when tapped */
 function sayQuestion(){
   if(S.word.kind === 'number') say(NUM[S.lang][S.word.n - 1]);
+  else if(S.word.kind === 'first'){
+    say(S.word.variant === 'a' ? UI[S.lang].firstA.replace('%w', S.word.cue.w) : UI[S.lang].firstB);
+  }
   else say(S.word.w);
 }
 
@@ -904,11 +1001,14 @@ function sayLetter(ch){
   var c = String(ch).toLowerCase();
   var ex = LETTER[S.lang] && LETTER[S.lang][c];
   if(ex) say(c + LINK[S.lang] + ex, letterRate());
-  else if(S.word.kind === 'letter') say(S.word.w, letterRate());   /* ń, ó, y */
+  /* ą ę ń ó y: one rule with Pisz (his call, 7 Oct) — the word it sits in, unchanged */
+  else if(S.word.kind === 'letter' && S.lang === 'pl') say(c + ' jak w słowie ' + S.word.w, letterRate());
+  else if(S.word.kind === 'letter') say(S.word.w, letterRate());   /* NB y, ø */
 }
 
 function sayWrong(val){
   if(S.word.kind === 'number') say(NUM[S.lang][(+val) - 1], letterRate());
+  else if(S.word.kind === 'first') setTimeout(function(){ say(val); }, 260);   /* the word she tapped */
   else setTimeout(function(){ sayLetter(val); }, 260);     /* let the shake land first */
 }
 
@@ -916,6 +1016,27 @@ function render(){
   var wd = $('word'), opts = $('opts'), pic = $('pic'), choices;
   wd.textContent = ''; opts.textContent = '';
   $('hint').textContent = UI[S.lang].tap;
+
+  if(S.word.kind === 'first'){
+    S.answer = S.word.w;
+    pic.className = 'pic' + (S.word.variant === 'b' ? ' bigletter' : '');
+    pic.textContent = S.word.variant === 'a' ? S.word.cue.e : disp(S.word.t);
+    S.word.options.forEach(function(o){
+      var b = document.createElement('button');
+      b.className = 'opt picopt';
+      b.textContent = o.e;
+      b.addEventListener('click', function(){ answer(o.w, b); });
+      opts.appendChild(b);
+    });
+    S.optionsN = S.word.options.length;
+    S.locked = false; S.missed = false; S.wrongTaps = 0; S.firstTap = 0;
+    S.qStart = Date.now(); S.hearPic = 0; S.hearTile = 0;
+    S.distractor = S.word.options.filter(function(o){ return o.w !== S.answer; })
+                                 .map(function(o){ return o.w; }).join(',');
+    drawStars(); updateTrophy();
+    $('practiceband').style.display = S.practice ? 'block' : 'none';
+    return;
+  }
 
   if(S.word.kind === 'number'){
     S.answer = String(S.word.n);
@@ -965,8 +1086,13 @@ function render(){
 
     /* distract only with letters she has met, so a question never turns on
        a symbol she has never been shown */
-    var known = activePool('letter').filter(function(l){ return l !== S.answer; });
-    choices = [S.answer, known[(Math.random() * known.length) | 0]];
+    /* Three buttons (research, 7 Oct): with two a guess was right half the
+       time — her K stood at 17 of 28, which guessing alone reaches 17% of
+       the time. A letter's first two showings keep two.                  */
+    var known = shuffle(activePool('letter').filter(function(l){ return l !== S.answer; }));
+    var seen = MASTERY[mkey('letter', S.answer)];
+    var nOpt = !seen || seen.n < STAGE.newTwo ? 2 : STAGE.options;
+    choices = [S.answer].concat(known.slice(0, nOpt - 1));
   }
 
   shuffle(choices).forEach(function(val){
@@ -984,7 +1110,8 @@ function render(){
   S.qStart = Date.now();
   S.hearPic = 0;
   S.hearTile = 0;
-  S.distractor = choices.filter(function(v){ return v !== S.answer; })[0] || '';
+  S.distractor = choices.filter(function(v){ return v !== S.answer; }).join(',');
+  S.optionsN = choices.length;
   drawStars();
   updateTrophy();
   $('practiceband').style.display = S.practice ? 'block' : 'none';
@@ -1007,8 +1134,10 @@ function answer(val, btn){
   S.locked = true;
   btn.classList.add('good');
   var g = $('gapbox');
-  g.textContent = S.word.kind === 'number' ? val : disp(val);
-  g.classList.add('in','pop');
+  if(g){
+    g.textContent = S.word.kind === 'number' ? val : disp(val);
+    g.classList.add('in','pop');
+  }
   record(S.answer, S.distractor, S.wrongTaps || 0, Date.now() - S.qStart);
   if(!S.practice){
     S.correct++; S.asked++;
@@ -1020,6 +1149,11 @@ function answer(val, btn){
   if(S.missed && S.word.kind === 'letter'){
     var said = S.answer + LINK[S.lang] + S.word.w;
     setTimeout(function(){ say(said, letterRate()); }, 260);
+  }
+  else if(S.word.kind === 'first'){
+    /* the two words side by side, or the letter inside its word: the same start, heard */
+    var pair = S.word.variant === 'a' ? S.word.w + ', ' + S.word.cue.w : S.word.t + LINK[S.lang] + S.word.w;
+    setTimeout(function(){ say(pair, letterRate()); }, 260);
   }
   else setTimeout(sayQuestion, 260);
   if(S.missed && S.word.kind === 'letter') comeBack(S.answer);
@@ -1630,7 +1764,9 @@ else if(dev === 'play'){ S.word = nextWord();
   if(devN && S.word.kind === 'number') S.word.n = +devN;
   render(); show('play'); }
 else if(dev === 'welcome'){ $('wtitle').textContent = nm(SAY[S.lang].hi) + '!'; show('welcome'); }
-else if(dev === 'probe'){ window.__probe = { chooseTarget:chooseTarget, nextWord:nextWord, activePool:activePool, S:S }; }
+else if(dev === 'probe'){ window.__probe = { chooseTarget:chooseTarget, nextWord:nextWord, activePool:activePool, S:S,
+                                             STAGE:STAGE, isResting:isResting, firstSound:firstSound, LOG:function(){ return LOG; },
+                                             render:render, sayLetter:sayLetter, setWord:function(w){ S.word = w; render(); } }; }
 else if(dev === 'lang'){ show('lang'); }
 else if(dev === 'parent'){ S.word = nextWord(); render(); openParent(); }
 else if(dev === 'stats'){

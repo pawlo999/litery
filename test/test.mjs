@@ -541,9 +541,11 @@ console.log('\n[11] MIXED MODE BALANCE');
       : a.btns().findIndex((_, j) => true);   // letters: try one, retry if wrong
     if (a.count() > 0) { a.clickBtn(idx < 0 ? 0 : idx); }
     else {
-      // letter question: find the right button by trying both
-      a.clickBtn(0); await sleep(500);
-      if (a.dead() > 0) a.clickBtn(1);
+      // letter or first-sound question: try the buttons in turn until one is right
+      for (let j = 0; j < a.btns().length; j++) {
+        a.clickBtn(j); await sleep(500);
+        if (a.d.querySelector('#opts .opt.good')) break;
+      }
     }
     await sleep(1900);
   }
@@ -606,6 +608,8 @@ console.log('\n[12] THE LOOP AFTER A ROUND, AND COUNT RANGE');
 }
 
 console.log('\n[13] WEIGHTED SELECTION — her real problem');
+// a name with none of the pool letters in it: these tests are about how many letters
+// are in play, and since 7 Oct the letters of her name jump the queue ([24] tests that)
 {
   // exactly the state her synced data showed: Polish S mastered, T and B not
   const mastery = {
@@ -613,7 +617,7 @@ console.log('\n[13] WEIGHTED SELECTION — her real problem');
     'pl:L:t': { n:6,  ft:4, box:1, streak:0, last:Date.now(), ms:[3600] },
     'pl:L:b': { n:5,  ft:4, box:1, streak:0, last:Date.now(), ms:[3300] }
   };
-  const a = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
                    restoredV:2, __mastery:mastery }, '?dev=probe');
   await sleep(200);
   ok(!!a.w.__probe, 'probe hook available');
@@ -639,7 +643,7 @@ console.log('\n[13] WEIGHTED SELECTION — her real problem');
   const stale = Object.assign({}, mastery);
   stale['pl:L:s'] = Object.assign({}, stale['pl:L:s'],
                                   { last: Date.now() - 4 * 86400000 });
-  const b2 = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+  const b2 = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
                     restoredV:2, __mastery:stale }, '?dev=probe');
   await sleep(200);
   const seen2 = { s:0, t:0, b:0, m:0, k:0 };
@@ -663,7 +667,7 @@ console.log('\n[13] WEIGHTED SELECTION — her real problem');
 
 {
   // a fresh child, nothing mastered: everything should be roughly even
-  const a = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2 },
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2 },
                  '?dev=probe');
   await sleep(200);
   const N = 3000, seen = { s:0, t:0, b:0 };
@@ -687,7 +691,7 @@ console.log('\n[13] WEIGHTED SELECTION — her real problem');
     'nb:L:t': { n:20, ft:17, box:4, streak:3, last:Date.now(), ms:[2500] },
     'nb:L:e': { n:4,  ft:1,  box:1, streak:0, last:Date.now(), ms:[4000] }
   };
-  const a = boot({ rate:.7, goal:20, lang:'nb', mode:'letters', prizes:[], day:'',
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'nb', mode:'letters', prizes:[], day:'',
                    restoredV:2, __mastery:mastery }, '?dev=probe');
   await sleep(200);
   const N = 3000, seen = { s:0, b:0, t:0, e:0 };
@@ -710,7 +714,7 @@ console.log('\n[13b] NEW LETTERS DO NOT FLOOD IN');
     'pl:L:b': { n:14, ft:13, box:5, streak:9, last:Date.now(), ms:[3400] },
     'pl:L:t': { n:20, ft:10, box:1, streak:0, last:Date.now(), ms:[4400] }
   };
-  const a = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
                    restoredV:2, __mastery:mastery }, '?dev=probe');
   await sleep(200);
   const pool0 = a.w.__probe.activePool('letter');
@@ -722,7 +726,7 @@ console.log('\n[13b] NEW LETTERS DO NOT FLOOD IN');
   const met = Object.assign({}, mastery);
   for (const x of ['m', 'k', 'l', 'd', 'n'])
     met['pl:L:' + x] = { n:1, ft:0, box:1, streak:0, last:Date.now(), ms:[6000] };
-  const b1 = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+  const b1 = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
                     restoredV:2, __mastery:met }, '?dev=probe');
   await sleep(200);
   const pool1 = b1.w.__probe.activePool('letter');
@@ -733,7 +737,7 @@ console.log('\n[13b] NEW LETTERS DO NOT FLOOD IN');
   // owning one frees a slot for the next
   const owned = Object.assign({}, met,
     { 'pl:L:t': Object.assign({}, mastery['pl:L:t'], { box:4 }) });
-  const b2 = boot({ rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
+  const b2 = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'',
                     restoredV:2, __mastery:owned }, '?dev=probe');
   await sleep(200);
   const pool2 = b2.w.__probe.activePool('letter');
@@ -1280,7 +1284,8 @@ console.log('\n[23] A MISSED LETTER COMES BACK');
   a.click('.flag[data-lang="pl"]'); await sleep(120);
 
   const btnFor = right => [...a.d.querySelectorAll('#opts .opt')]
-    .findIndex(b => (b.textContent.toLowerCase() === a.w.__probe.S.answer) === right);
+    .findIndex(b => (a.w.__probe.S.word.kind === 'first' ? b.textContent === a.w.__probe.S.word.e
+                     : b.textContent.toLowerCase() === a.w.__probe.S.answer) === right);
   const lastRow = () => { const l = JSON.parse(a.w.localStorage.getItem('litery.child.log') || '[]');
                           return l[l.length - 1]; };
   async function miss() {
@@ -1357,7 +1362,8 @@ const bootFrom = (store, pre) => boot({}, '?dev=probe', w => {
   w.localStorage.clear(); for (const [k, v] of Object.entries(store)) w.localStorage.setItem(k, v);
   if (pre) pre(w); });
 const tapRight = async (a, wait = 1800) => {
-  const S = a.w.__probe.S, want = S.word.kind === 'number' ? S.answer : S.answer.toUpperCase();
+  /* a first-sound round answers with a picture: the right one is S.word.e */
+  const S = a.w.__probe.S, want = S.word.kind === 'number' ? S.answer : S.word.kind === 'first' ? S.word.e : S.answer.toUpperCase();
   [...a.d.querySelectorAll('#opts .opt')].find(b => b.textContent === want).click();
   await sleep(wait);
 };
@@ -1485,6 +1491,148 @@ const tapRight = async (a, wait = 1800) => {
   const fresh = await (await worker.fetch(new Request('https://x/s/' + 'q'.repeat(32),
                   { method:'POST', body: JSON.stringify({ prizes:['a','b'], log:[] }) }), env)).json();
   ok(fresh.prizes.length === 2, 'a first post still sets the pre-logging prizes');
+}
+
+console.log('\n[24] THE RESEARCH CHANGES (7 Oct)');
+{
+  // three buttons once a letter has been seen twice; two for its first showings; numbers keep two
+  const mastery = {
+    'pl:L:s': { n:9, ft:5, box:2, streak:0, last:Date.now(), ms:[3000] },
+    'pl:L:b': { n:9, ft:8, box:5, streak:4, last:Date.now(), ms:[2000] },
+    'pl:L:t': { n:1, ft:0, box:1, streak:0, last:Date.now(), ms:[5000] }
+  };
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2, __mastery:mastery }, '?dev=probe');
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(80);
+  a.w.__probe.setWord({ kind:'letter', w:'sowa', e:'🦉' });
+  const b3 = a.btns();
+  ok(b3.length === 3 && new Set(b3).size === 3 && b3.includes('S'), 'A LETTER SHE HAS MET ASKS WITH THREE BUTTONS, all different', b3.join(' '));
+  ok(b3.every(x => ['S', 'B', 'T', 'M', 'K'].includes(x)), 'and the other two are letters she has met or is meeting now', b3.join(' '));
+  a.w.__probe.setWord({ kind:'letter', w:'tort', e:'🎂' });
+  ok(a.btns().length === 2, 'a letter shown only once before still has two', a.btns().join(' '));
+  a.w.__probe.setWord({ kind:'number', n:3, e:'🍎' });
+  ok(a.btns().length === 2, 'numbers keep two', a.btns().join(' '));
+  a.w.__probe.setWord({ kind:'letter', w:'sowa', e:'🦉' });
+  const right = a.btns().indexOf('S');
+  a.clickBtn(right); await sleep(200);
+  const row = JSON.parse(a.w.localStorage.getItem('litery.child.log')).pop();
+  ok(row.o === 3 && row.d.split(',').length === 2, 'the log records three options and both distractors', JSON.stringify(row));
+  a.w.close();
+}
+{
+  // first-sound rounds: question 3 of every 5 in letters mode
+  const mastery = {
+    'pl:L:s': { n:9, ft:8, box:5, streak:4, last:Date.now(), ms:[2000] },
+    'pl:L:k': { n:9, ft:8, box:5, streak:4, last:Date.now(), ms:[2000] },
+    'pl:L:m': { n:9, ft:8, box:5, streak:4, last:Date.now(), ms:[2000] }
+  };
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2, __mastery:mastery }, '?dev=probe');
+  await sleep(150);
+  const P = a.w.__probe;
+  P.S.correct = 2;
+  const q = P.nextWord();
+  ok(q.kind === 'first', 'THE THIRD QUESTION OF FIVE IS A FIRST-SOUND ROUND', JSON.stringify(q).slice(0, 120));
+  const starts = q.options.map(o => o.w.charAt(0));
+  ok(q.options.length === 3 && starts.filter(c => c === q.t).length === 1 && new Set(starts).size === 3,
+     'three pictures, exactly one starting with the letter', JSON.stringify(q.options));
+  if (q.variant === 'a') ok(q.cue.w.charAt(0) === q.t && q.cue.w !== q.w, 'the cue picture starts the same way but is a different word', q.cue.w + ' / ' + q.w);
+  P.S.correct = 3; const n3 = P.nextWord();
+  ok(n3.kind === 'letter', 'the questions either side are letters', n3.kind);
+  // both variants come up
+  const seen = new Set();
+  for (let i = 0; i < 12; i++) { P.S.correct = 2; const x = P.nextWord(); if (x.kind === 'first') seen.add(x.variant); }
+  ok(seen.has('a') && seen.has('b'), 'both kinds alternate: picture-to-picture and letter-to-picture', [...seen].join(','));
+  // on screen, answered: wrong says the tapped word, right says the pair; the row is F and no box moves
+  a.click('.flag[data-lang="pl"]'); await sleep(80);
+  P.S.correct = 2; P.S.fsN = 0;
+  let w = P.nextWord(); while (w.kind !== 'first') { P.S.correct = 2; w = P.nextWord(); }
+  P.setWord(w);
+  ok(a.d.querySelectorAll('#opts .opt.picopt').length === 3 && a.tiles().length === 0, 'it shows three picture buttons and no letter tiles');
+  ok(w.variant === 'a' ? a.d.getElementById('pic').textContent === w.cue.e : a.d.getElementById('pic').textContent === w.t.toUpperCase(),
+     'the top shows the cue picture, or the big letter', a.d.getElementById('pic').textContent);
+  const before = JSON.stringify(P.S.correct), mBefore = a.w.localStorage.getItem('litery.child.mastery');
+  const btns = [...a.d.querySelectorAll('#opts .opt')];
+  const wrongI = w.options.findIndex(o => o.w !== w.w), rightI = w.options.findIndex(o => o.w === w.w);
+  a.clear(); btns[wrongI].click(); await sleep(500);
+  ok(a.said().includes(w.options[wrongI].w), 'a wrong picture says its own word', JSON.stringify(a.said()));
+  a.clear(); btns[rightI].click(); await sleep(500);
+  const pair = w.variant === 'a' ? w.w + ', ' + w.cue.w : w.t + ' jak ' + w.w;
+  ok(a.said().includes(pair), 'the right one says the two side by side: "' + pair + '"', JSON.stringify(a.said()));
+  const frow = JSON.parse(a.w.localStorage.getItem('litery.child.log')).pop();
+  ok(frow.k === 'F' && frow.x === w.t && frow.w === 1 && frow.v === w.variant, 'logged as a first-sound row with its letter and kind', JSON.stringify(frow));
+  ok(a.w.localStorage.getItem('litery.child.mastery') === mBefore, 'and no Leitner box moves for it');
+  ok(P.S.correct === +before + 1, 'it counts towards the round, like any right answer');
+  a.w.close();
+}
+{
+  // a missed letter due back now is not displaced by a first-sound round
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2 }, '?dev=probe');
+  await sleep(150);
+  a.w.__probe.S.correct = 2;
+  a.w.__probe.S.due = [{ lang:'pl', t:'b', left:1 }];
+  const q = a.w.__probe.nextWord();
+  ok(q.kind === 'letter' && q.w.charAt(0) === 'b', 'A MISSED LETTER DUE BACK KEEPS ITS SLOT', JSON.stringify(q));
+  a.w.close();
+}
+{
+  // her real 7 Oct problem: S stuck for 46 tries in box 2 held a slot while O A R P W waited
+  const now = Date.now(), day = 86400000, log = [];
+  for (let i = 0; i < 20; i++) log.push({ t: now - 2 * day + i * 1000, l:'pl', k:'L', x:'s', w: i % 3 === 2 ? 1 : 0, ms:3000 });
+  // the pattern continues across days: never three right in a row, so never box 4
+  for (let i = 20; i < 25; i++) log.push({ t: now - 3600000 + i * 1000, l:'pl', k:'L', x:'s', w: i % 3 === 2 ? 1 : 0, ms:3000 });
+  for (const [x, t0] of [['t', 9], ['k', 10]]) log.push({ t: now - day + t0, l:'pl', k:'L', x, w:1, ms:4000 });
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2, __log:log,
+                   __mastery: { 'pl:L:s': { n:25, ft:17, box:2, streak:1, last:now - 3600000, ms:[3000] },
+                                'pl:L:t': { n:1, ft:0, box:1, streak:0, last:now - day, ms:[4000] },
+                                'pl:L:k': { n:1, ft:0, box:1, streak:0, last:now - day, ms:[4000] } } }, '?dev=probe');
+  await sleep(150);
+  ok(a.w.__probe.isResting('s'), 'A LETTER WHOSE LAST 15 TRIES NEVER REACHED BOX 4 RESTS AFTER 5 TRIES TODAY');
+  const pool = a.w.__probe.activePool('letter');
+  ok(!pool.includes('s') && pool.includes('t') && pool.includes('k') && pool.length === 3,
+     'its slot goes to the next letter in line', pool.join(' '));
+  a.w.close();
+  // the next day it is back
+  const y = log.map(r => Object.assign({}, r, { t: r.t - day }));
+  const b = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2, __log:y,
+                   __mastery: { 'pl:L:s': { n:25, ft:17, box:2, streak:1, last:now - day, ms:[3000] } } }, '?dev=probe');
+  await sleep(150);
+  ok(!b.w.__probe.isResting('s') && b.w.__probe.activePool('letter').includes('s'), 'and the next day it is back in play');
+  b.w.close();
+}
+{
+  // her name's letters jump the queue
+  const a = boot({ name:'Ada', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2 }, '?dev=probe');
+  await sleep(150);
+  ok(a.w.__probe.activePool('letter').join('') === 'das', 'A FRESH CHILD CALLED ADA MEETS D AND A FIRST, then S', a.w.__probe.activePool('letter').join(' '));
+  a.w.close();
+  const b = boot({ name:'Ada', rate:.7, goal:20, lang:'nb', mode:'letters', prizes:[], day:'', restoredV:2 }, '?dev=probe');
+  await sleep(150);
+  ok(b.w.__probe.activePool('letter').join('') === 'asb', 'in Norwegian: A first, then the pool order', b.w.__probe.activePool('letter').join(' '));
+  b.w.close();
+}
+{
+  // words with a cluster or a softened first sound are gone; ą says the word it sits in, unchanged
+  const src = readFileSync(APP, 'utf8');
+  const gone = ["'słoń'", "'brat'", "'pies'", "'sko'", "'tre'", "'okse'"].filter(w => src.includes('{w:' + w));
+  ok(!gone.length, 'NO PICTURE WORD STARTS WITH A CLUSTER OR A SOFTENED SOUND', gone.join(' '));
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2 }, '?dev=probe');
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(80);
+  a.w.__probe.setWord({ kind:'letter', w:'dąb', e:'🌳' });
+  a.clear();
+  const tile = [...a.d.querySelectorAll('#word .cell')].find(c => c.textContent === 'Ą');
+  tile.click(); await sleep(50);
+  ok(a.said().includes('ą jak w słowie dąb'), 'a Ą tile says "ą jak w słowie dąb" (one rule with Pisz)', JSON.stringify(a.said()));
+  a.clear();
+  ok(/pawlo999\.github\.io\/pisz\/parent\.html/.test(a.d.getElementById('parent').textContent), 'the parent panel points to the one dashboard for both apps');
+  a.w.close();
+}
+{
+  // three buttons fit a phone
+  const a = boot({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2 }, '');
+  const css = readFileSync(APP, 'utf8');
+  ok(/\.opt\{width:clamp\(84px,min\(16\.5vh,27vw\),142px\)/.test(css), 'button width follows the screen width, so three fit 390 px');
+  a.w.close();
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
