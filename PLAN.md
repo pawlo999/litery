@@ -146,7 +146,7 @@ is the single largest piece of work in this plan, and it is content, not code.
 | S3 | weighted selection — the app starts adapting | **done, b25** |
 | S3b | a missed letter comes back 2 questions later; first-tap time logged | **done, b46** — guessing was free: K 61% over 28 tries with 2 buttons |
 | S4 | auto-advancement + L2, L3 | **L2 (3 options) done, b48**; auto-advancement still on hold |
-| S11 | research changes (7 Oct) — see §8 | **done, b48**, except letter sounds (waiting on his pick in voices.html) |
+| S11 | research changes (7 Oct) — see §8 | **done, b48**; letter sounds b50 |
 | S5 | content: 60–80 words per language | **done, b32** — 13 PL letters / 39 words, 12 NO / 32 |
 | S6 | L4–L6 position variants | |
 | S7 | case axis | |
@@ -173,9 +173,15 @@ letters). What changed in b48, and why:
 | The parent panel points to the **one dashboard for both apps**, `pawlo999.github.io/pisz/parent.html`. | McTigue 2020 (GraphoGame g=0.48 with an adult, −0.02 without) |
 | Not changed: the prize album does not grow (an expected reward lowers later interest). | Deci 1999; Lepper 1973 |
 
-Waiting: **letter sounds** ("es — sss — sowa"). Polish schools teach the sound first and
-the name after a year; the iPad voice says only names. `pisz/voices.html` lets him pick, per
-letter, between the voice and free recordings; Litery plays the pick once chosen.
+**Letter sounds, b50** (his call 7 Oct, "1a"). Polish schools teach the sound first and the
+name after a year; the iPad voice says only names ("gie"), fails at a held sound ("uuu"), and
+the free recordings were five men's voices beside a woman's TTS. So a parent records each
+sound once on `pawlo999.github.io/pisz/record.html`; a recorded letter is heard as that
+recording, then the voice's "jak sowa" — on a tile, a wrong tap, the right tap after a miss
+and the letter-shown first-sound round. Stored on the Pisz sync service under the same family
+key, kept on the device for offline (`litery.sounds.index`, cache `sounds-v1`). Not recorded,
+not loaded within 0.7 s, or audio not running: the old phrase from the voice, never "jak sowa"
+alone. The code is a copy of `pisz/sounds.js`, inline because this app is one file.
 
 ## 7 · Where this could go wrong
 

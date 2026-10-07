@@ -1646,6 +1646,107 @@ console.log('\n[24] THE RESEARCH CHANGES (7 Oct)');
   a.w.close();
 }
 
+console.log('\n[25] LETTER SOUNDS A PARENT RECORDED (7 Oct)');
+{
+  const SKEY = 'k'.repeat(32);
+  /* the Pisz sync service and an audio device, faked: which letters exist,
+     their bytes, and every clip started or stopped                        */
+  const sounds = (opt = {}) => w => {
+    w.__clips = []; w.__stops = 0; w.__asked = [];
+    w.fetch = url => {
+      url = String(url); w.__asked.push(url);
+      if (url === 'https://pisz-sync.pawlo999.workers.dev/a/' + SKEY)
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(opt.index || { pl: { o: 1, s: 2, k: 3, t: 4, m: 5, b: 6 }, nb: { k: 7 } }) });
+      const m = url.match(/\/a\/k+\/(pl|nb)\/([^?]+)\?v=/);
+      if (m) {
+        if (opt.broken) return Promise.resolve({ ok: false, status: 500 });
+        return Promise.resolve({ ok: true, clone() { return this; }, arrayBuffer: () => Promise.resolve({ clip: m[1] + ':' + decodeURIComponent(m[2]) }) });
+      }
+      return Promise.reject(new Error('offline'));
+    };
+    w.AudioContext = function () {
+      this.state = opt.suspended ? 'suspended' : 'running'; this.currentTime = 0; this.destination = {};
+      this.resume = () => Promise.resolve();
+      this.decodeAudioData = (ab, res) => { res({ duration: 0.3, clip: ab.clip }); };
+      this.createBufferSource = () => ({ connect() {}, start() { w.__clips.push(this.buffer.clip); }, stop() { w.__stops++; } });
+      this.createOscillator = () => ({ type: '', frequency: { value: 0 }, connect() {}, start() {}, stop() {} });
+      this.createGain = () => ({ gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} });
+    };
+  };
+  const tile = (a, ch) => [...a.d.querySelectorAll('#word .cell')].find(c => c.textContent === ch).click();
+  const seed = (x = {}) => Object.assign({ name:'Eve', rate:.7, goal:20, lang:'pl', mode:'letters', prizes:[], day:'', restoredV:2, syncKey:SKEY }, x);
+
+  let a = boot(seed(), '?dev=probe', sounds());
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(80);
+  a.w.__probe.setWord({ kind:'letter', w:'sowa', e:'🦉' });
+  a.clear(); a.w.__clips.length = 0; tile(a, 'O'); await sleep(60);
+  ok(a.w.__clips.join() === 'pl:o' && !a.said().length, 'a recorded O tile plays the recording first, and the voice waits', JSON.stringify([a.w.__clips, a.said()]));
+  await sleep(500);
+  ok(a.said().join('|') === ' jak oko', 'then the voice says "jak oko" — never "o jak oko" as well', JSON.stringify(a.said()));
+  a.clear(); tile(a, 'W'); await sleep(60);
+  ok(a.said().join('|') === 'w jak woda' && a.w.__clips.length === 1, 'a letter with no recording (W) is said as before', JSON.stringify(a.said()));
+
+  a.clear(); const stops = a.w.__stops; tile(a, 'O'); await sleep(40); tile(a, 'W'); await sleep(600);
+  ok(a.w.__stops > stops && a.said().join('|') === 'w jak woda', 'a second tap stops the recording and drops its "jak oko"', JSON.stringify(a.said()));
+
+  // the miss and the right answer after it: both are recordings
+  a.w.__probe.setWord({ kind:'letter', w:'sowa', e:'🦉' });
+  const btns = a.btns(), wrongI = btns.findIndex(x => x !== 'S'), rightI = btns.indexOf('S');
+  a.clear(); a.w.__clips.length = 0;
+  a.clickBtn(wrongI); await sleep(900);
+  const wl = btns[wrongI].toLowerCase();
+  ok(a.w.__clips.join() === 'pl:' + wl && a.said().length === 1 && /^ jak /.test(a.said()[0]),
+     'a wrong tap plays that letter\'s recording, then "jak …"', JSON.stringify([btns, a.w.__clips, a.said()]));
+  a.clear(); a.w.__clips.length = 0;
+  a.clickBtn(rightI); await sleep(900);
+  ok(a.w.__clips.join() === 'pl:s' && a.said().includes(' jak sowa') && !a.said().includes('s jak sowa'),
+     'the right tap after a miss: [s] … "jak sowa"', JSON.stringify([a.w.__clips, a.said()]));
+
+  // the parent panel
+  a.d.getElementById('gear').dispatchEvent(new a.w.MouseEvent('mousedown')); await sleep(1400);
+  ok(a.d.getElementById('sndv').textContent === '6 Polish, 1 Norwegian recorded', 'the parent panel counts the recordings', a.d.getElementById('sndv').textContent);
+  ok(a.d.getElementById('recbtn').getAttribute('href') === '../pisz/record.html', 'and links to the one recording page, in Pisz');
+  ok(a.w.localStorage.getItem('litery.sounds.index') !== null, 'the list of recordings is kept for offline, under a litery.* key');
+  a.w.close();
+
+  // Norwegian: C is the K recording
+  a = boot(seed({ lang:'nb' }), '?dev=probe', sounds());
+  await sleep(150);
+  a.click('.flag[data-lang="nb"]'); await sleep(80);
+  a.w.__probe.setWord({ kind:'letter', w:'katt', e:'🐱' });
+  a.clear(); a.w.__clips.length = 0; a.w.__probe.sayLetter('k'); await sleep(600);
+  ok(a.w.__clips.join() === 'nb:k' && a.said().join('|') === ' som i katt', 'NB: "[k] som i katt"', JSON.stringify([a.w.__clips, a.said()]));
+  a.w.close();
+
+  // a recording that will not load: the old phrase, after at most 0.7 s
+  a = boot(seed(), '?dev=probe', sounds({ broken: true }));
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(80);
+  a.w.__probe.setWord({ kind:'letter', w:'sowa', e:'🦉' });
+  a.clear(); tile(a, 'O'); await sleep(900);
+  ok(!a.w.__clips.length && a.said().join('|') === 'o jak oko', 'a recording that will not load: "o jak oko" from the voice', JSON.stringify(a.said()));
+  a.w.close();
+
+  // audio not running (iOS after a call): never a silent clip and "jak oko" alone
+  a = boot(seed(), '?dev=probe', sounds({ suspended: true }));
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(80);
+  a.w.__probe.setWord({ kind:'letter', w:'sowa', e:'🦉' });
+  a.clear(); tile(a, 'O'); await sleep(300);
+  ok(!a.w.__clips.length && a.said().join('|') === 'o jak oko', 'audio off: the whole phrase from the voice', JSON.stringify(a.said()));
+  a.w.close();
+
+  // no key: the sounds service is never asked, and speech is exactly as before
+  a = boot(seed({ syncKey:'' }), '?dev=probe', sounds());
+  await sleep(150);
+  a.click('.flag[data-lang="pl"]'); await sleep(80);
+  a.w.__probe.setWord({ kind:'letter', w:'sowa', e:'🦉' });
+  a.clear(); tile(a, 'O'); await sleep(60);
+  ok(a.said().join('|') === 'o jak oko' && !a.w.__asked.some(u => /pisz-sync/.test(u)), 'without a key: "o jak oko", nothing fetched', JSON.stringify([a.said(), a.w.__asked]));
+  a.w.close();
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('HARNESS ERROR', e); process.exit(2); });

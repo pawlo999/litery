@@ -1,7 +1,7 @@
 /* Offline for the published copy. Network-first so a new build lands as soon
    as there is a connection, cache fallback so the home-screen icon still
    opens in the car, at her grandmother's, or with the laptop switched off. */
-const CACHE  = 'litery-v27';
+const CACHE  = 'litery-v28';
 const ASSETS = ['./', './index.html', './manifest.json',
                 './icon-512.png', './apple-touch-icon.png'];
 
