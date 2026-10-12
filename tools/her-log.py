@@ -14,26 +14,55 @@ import datetime, json, os, re, subprocess, sys, urllib.parse, urllib.request
 
 
 def refuse_inside_a_checkout(out):
-    """Her record must never land where `git add` could pick it up: refuse
-    any path inside a git checkout (this repo, its worktrees, any other
-    repo) unless that checkout ignores it. Fails closed: if git cannot say,
-    nothing is written. The same guard sits in pisz/tools/her-log.py and
-    litery/tools/her-log.py — change both (their tests run it)."""
+    """Her record must never land where git could pick it up or a test
+    server could serve it: refuse any path under the checkout this script
+    lives in (ignored or not — serve.py serves the whole folder), and any
+    path inside another git checkout unless that checkout ignores it. Fails
+    closed: if git cannot say, nothing is written. The same guard sits in
+    pisz/tools/her-log.py and litery/tools/her-log.py — change both (their
+    tests compare the two)."""
+    env = dict(os.environ, LC_ALL='C', LANGUAGE='')
+    here = os.path.dirname(os.path.realpath(__file__))
+    own = subprocess.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir', '--show-toplevel'],
+                         cwd=here, capture_output=True, text=True, env=env)
+    if own.returncode != 0:
+        sys.exit('cannot tell which checkout this script is in (%s) — refusing' % own.stderr.strip())
+    common, top = own.stdout.split('\n')[:2]
+    for root in {os.path.dirname(os.path.realpath(common)), os.path.realpath(top)}:
+        if out == root or out.startswith(root + os.sep):
+            sys.exit('refusing to write her record inside this repo (%s): %s' % (root, out))
     probe = out
     while not os.path.isdir(probe):
         parent = os.path.dirname(probe)
         if parent == probe:
             break
         probe = parent
-    top = subprocess.run(['git', 'rev-parse', '--show-toplevel'], cwd=probe, capture_output=True, text=True)
-    if top.returncode != 0:
-        if 'not a git repository' in top.stderr:
+    other = subprocess.run(['git', 'rev-parse', '--show-toplevel'], cwd=probe, capture_output=True, text=True, env=env)
+    if other.returncode != 0:
+        if 'not a git repository' in other.stderr:
             return
-        sys.exit('cannot tell whether %s is inside a git checkout (%s) — refusing' % (out, top.stderr.strip()))
-    ignored = subprocess.run(['git', 'check-ignore', '-q', out], cwd=probe, capture_output=True, text=True)
+        sys.exit('cannot tell whether %s is inside a git checkout (%s) — refusing' % (out, other.stderr.strip()))
+    ignored = subprocess.run(['git', 'check-ignore', '-q', out], cwd=probe, capture_output=True, text=True, env=env)
     if ignored.returncode == 0:
         return
-    sys.exit('refusing to write her record inside the git checkout %s (not ignored there): %s' % (top.stdout.strip(), out))
+    sys.exit('refusing to write her record inside the git checkout %s (not ignored there): %s' % (other.stdout.strip(), out))
+
+
+def save_outside(out, data):
+    """write through a temporary file of its own beside `out`, which the guard
+    checks too, then move it into place"""
+    import tempfile
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(out), prefix='.' + os.path.basename(out) + '.', suffix='.json')
+    try:
+        refuse_inside_a_checkout(tmp)
+        with os.fdopen(fd, 'w') as f:
+            json.dump(data, f)
+        os.replace(tmp, out)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+# --- end of the part shared by pisz/tools/her-log.py and litery/tools/her-log.py ---
 
 
 # the arguments first: nothing is fetched for a typo
@@ -59,10 +88,7 @@ d = json.loads(urllib.request.urlopen(req, timeout=20).read())
 log = d.get('log', [])
 if not log:
     sys.exit('the service has no rows under this key (a wrong or changed key gets an empty record) — %s left as it was' % out)
-os.makedirs(os.path.dirname(out), exist_ok=True)
-tmp = out + '.part'
-json.dump(d, open(tmp, 'w'))
-os.replace(tmp, out)
+save_outside(out, d)
 
 name = d.get('name') if isinstance(d.get('name'), str) else ''
 whole = re.compile(r'(?<!\w)' + re.escape(name) + r'(?!\w)', re.I) if name else None
