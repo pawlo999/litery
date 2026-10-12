@@ -2,8 +2,11 @@
 data/
 
 # test dependencies
-test/node_modules/
+test/node_modules
 sync/node_modules/
 sync/.wrangler/
 sync/key.txt
 sync/.env
+
+# Claude Code's per-checkout folder: its worktrees and local settings
+/.claude/

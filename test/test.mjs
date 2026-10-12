@@ -1758,6 +1758,33 @@ console.log('\n[25] LETTER SOUNDS A PARENT RECORDED (7 Oct)');
   a.w.close();
 }
 
+// tools/her-log.py: her record never lands in a git checkout — checked
+// before the key is read, so these runs touch no network
+{
+  console.log('\ntools: her record stays out of every checkout');
+  const { spawnSync } = await import('child_process');
+  const path = await import('path'), os = await import('os');
+  const tool = new URL('../tools/her-log.py', import.meta.url).pathname;
+  const repo = path.dirname(path.dirname(tool));
+  const run = out => spawnSync('python3', [tool, '--out', out], { encoding: 'utf8', env: { ...process.env, LITERY_KEY_FILE: path.join(os.tmpdir(), 'litery-no-such-key-' + process.pid) } });
+  const r1 = run(path.join(repo, 'her.json'));
+  ok(r1.status !== 0 && /refusing to write her record inside the git checkout/.test(r1.stderr), 'a path in this checkout is refused', r1.stderr.trim());
+  const r2 = run(path.join(repo, 'tools', 'deeper', 'her.json'));
+  ok(r2.status !== 0 && /refusing/.test(r2.stderr), 'and a folder in it that does not exist yet', r2.stderr.trim());
+  const r3 = run(path.join(os.tmpdir(), 'litery-guard-' + process.pid, 'her.json'));
+  ok(r3.status !== 0 && /No such file|FileNotFound/.test(r3.stderr) && !/refusing/.test(r3.stderr), 'a path outside any checkout passes the guard (and stops at the missing key)', r3.stderr.trim().split('\n').pop());
+  /* any other checkout too (12 Oct review: ~/priv/pisz/her.json was let through),
+     unless that checkout ignores the path                                     */
+  const other = path.join(os.tmpdir(), 'litery-guard-repo-' + process.pid);
+  spawnSync('git', ['init', '-q', other]);
+  (await import('fs')).writeFileSync(path.join(other, '.gitignore'), 'private/\n');
+  const r4 = run(path.join(other, 'her.json'));
+  ok(r4.status !== 0 && /refusing to write her record inside the git checkout/.test(r4.stderr), 'a path in another checkout is refused', r4.stderr.trim().split('\n').pop());
+  const r5 = run(path.join(other, 'private', 'her.json'));
+  ok(r5.status !== 0 && !/refusing/.test(r5.stderr), 'a path that checkout ignores is allowed (as Litery keeps her data in data/)', r5.stderr.trim().split('\n').pop());
+  (await import('fs')).rmSync(other, { recursive: true, force: true });
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('HARNESS ERROR', e); process.exit(2); });
