@@ -1783,6 +1783,14 @@ console.log('\n[25] LETTER SOUNDS A PARENT RECORDED (7 Oct)');
   const r5 = run(path.join(other, 'private', 'her.json'));
   ok(r5.status !== 0 && !/refusing/.test(r5.stderr), 'a path that checkout ignores is allowed (as Litery keeps her data in data/)', r5.stderr.trim().split('\n').pop());
   (await import('fs')).rmSync(other, { recursive: true, force: true });
+  /* the same guard is copied into Pisz (two public repos, no shared code):
+     where both are checked out side by side, the two copies must match   */
+  const fs = await import('fs');
+  const common = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+  const twin = path.join(path.dirname(common), '..', 'pisz', 'tools', 'her-log.py');
+  const guardOf = f => (fs.readFileSync(f, 'utf8').match(/^def refuse_inside_a_checkout[\s\S]*?\n(?=\S)/m) || [''])[0];
+  if (common && fs.existsSync(twin)) ok(guardOf(tool) && guardOf(tool) === guardOf(twin), 'the guard is the same as in pisz/tools/her-log.py', twin);
+  else console.log('  (pisz not checked out beside litery: guard copies not compared)');
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
